@@ -1,9 +1,10 @@
 package handler
 
 import (
-	"regexp"
-
+	"github.com/jerion/picbed-switcher/internal/model"
 	"github.com/jerion/picbed-switcher/internal/picbed"
+	"github.com/jerion/picbed-switcher/internal/utils"
+	"regexp"
 )
 
 var emailPattern = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]+$`)
@@ -48,6 +49,10 @@ type changePasswordRequest struct {
 	ConfirmPassword string `json:"confirm_password"`
 }
 
+type changeEmailRequest struct {
+	Email string `json:"email"`
+}
+
 type picbedConfigRequest struct {
 	PicBedType string            `json:"picbed_type"`
 	ConfigName string            `json:"config_name"`
@@ -62,4 +67,55 @@ type markdownRequest struct {
 type batchMarkdownRequest struct {
 	Files          []markdownRequest `json:"files"`
 	TargetConfigID uint              `json:"target_config_id"`
+}
+
+type errorResponse struct {
+	Error string `json:"error" example:"请求失败"`
+}
+
+type messageResponse struct {
+	Message string `json:"message" example:"操作成功"`
+}
+
+type authResponse struct {
+	Token string                 `json:"token"`
+	User  map[string]interface{} `json:"user"`
+}
+
+type userResponse struct {
+	User map[string]interface{} `json:"user"`
+}
+
+type picbedTypesResponse struct {
+	Types []picbedTypeDef `json:"types"`
+}
+
+type configsResponse struct {
+	Configs []map[string]interface{} `json:"configs"`
+}
+
+type configResponseDoc struct {
+	Config map[string]interface{} `json:"config"`
+}
+
+type analyzeMarkdownResponse struct {
+	Images []utils.MarkdownImage `json:"images"`
+	Counts map[string]int        `json:"counts"`
+	Total  int                   `json:"total"`
+}
+
+type convertMarkdownResponse struct {
+	Filename string                 `json:"filename"`
+	Content  string                 `json:"content"`
+	Changed  int                    `json:"changed"`
+	Status   string                 `json:"status"`
+	Record   model.ConversionRecord `json:"record"`
+}
+
+type batchConvertResponse struct {
+	Results []map[string]interface{} `json:"results"`
+}
+
+type recordsResponse struct {
+	Records []model.ConversionRecord `json:"records"`
 }

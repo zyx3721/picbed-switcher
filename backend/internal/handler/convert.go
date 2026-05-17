@@ -13,6 +13,16 @@ import (
 	"github.com/jerion/picbed-switcher/internal/utils"
 )
 
+// analyzeMarkdown godoc
+// @Summary 分析 Markdown 文档中的图片地址
+// @Tags convert
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body markdownRequest true "Markdown 内容"
+// @Success 200 {object} analyzeMarkdownResponse
+// @Failure 400 {object} errorResponse
+// @Router /api/convert/analyze [post]
 func (a *API) analyzeMarkdown(c *gin.Context) {
 	var req markdownRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -26,6 +36,18 @@ func (a *API) analyzeMarkdown(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"images": images, "counts": counts, "total": len(images)})
 }
+
+// convertMarkdown godoc
+// @Summary 执行单个 Markdown 文档转换
+// @Tags convert
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body markdownRequest true "转换请求"
+// @Success 200 {object} convertMarkdownResponse
+// @Failure 400 {object} errorResponse
+// @Failure 404 {object} errorResponse
+// @Router /api/convert/process [post]
 func (a *API) convertMarkdown(c *gin.Context) {
 	var req markdownRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -39,6 +61,17 @@ func (a *API) convertMarkdown(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, result)
 }
+
+// convertMarkdownBatch godoc
+// @Summary 批量执行 Markdown 文档转换
+// @Tags convert
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body batchMarkdownRequest true "批量转换请求"
+// @Success 200 {object} batchConvertResponse
+// @Failure 400 {object} errorResponse
+// @Router /api/convert/batch [post]
 func (a *API) convertMarkdownBatch(c *gin.Context) {
 	var req batchMarkdownRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -123,6 +156,15 @@ func (a *API) convertOne(c *gin.Context, req markdownRequest) (gin.H, int, error
 	}
 	return gin.H{"filename": filename, "content": output, "changed": changed, "status": status, "record": record}, http.StatusOK, nil
 }
+
+// listRecords godoc
+// @Summary 获取转换历史
+// @Tags convert
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} recordsResponse
+// @Failure 401 {object} errorResponse
+// @Router /api/convert/records [get]
 func (a *API) listRecords(c *gin.Context) {
 	var records []model.ConversionRecord
 	if err := a.db.Where("user_id = ?", middleware.UserID(c)).Order("created_at desc").Limit(50).Find(&records).Error; err != nil {

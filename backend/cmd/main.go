@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	_ "github.com/jerion/picbed-switcher/docs"
 	"github.com/jerion/picbed-switcher/internal/config"
 	"github.com/jerion/picbed-switcher/internal/database"
 	"github.com/jerion/picbed-switcher/internal/handler"
@@ -12,6 +13,13 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// @title PicBed Switcher API
+// @version 1.0
+// @description Markdown 图床批量转换平台 API
+// @BasePath /
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
 func main() {
 	if err := godotenv.Load(); err != nil {
 		log.Printf("Warning: failed to load .env: %v", err)

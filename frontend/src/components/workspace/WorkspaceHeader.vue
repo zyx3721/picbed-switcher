@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ImageUp, KeyRound, LogOut } from 'lucide-vue-next';
+import { ImageUp, LogOut, UserCog } from 'lucide-vue-next';
 import { useWorkspaceContext } from '../../composables/useWorkspaceContext';
 
-const { user, openPasswordDialog, logout } = useWorkspaceContext();
+const { user, openProfileDialog, logout } = useWorkspaceContext();
 </script>
 
 <template>
@@ -16,8 +16,8 @@ const { user, openPasswordDialog, logout } = useWorkspaceContext();
     </div>
     <div class="account">
       <span>{{ user?.username }}</span>
-      <button class="ghost icon-button" type="button" @click="openPasswordDialog">
-        <KeyRound :size="18" />修改密码
+      <button class="ghost icon-button" type="button" @click="openProfileDialog">
+        <UserCog :size="18" />修改信息
       </button>
       <button class="ghost icon-button" type="button" @click="logout">
         <LogOut :size="18" />退出

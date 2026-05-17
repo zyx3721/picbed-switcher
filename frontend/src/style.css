@@ -1284,7 +1284,14 @@ th {
   display: grid;
   gap: 12px;
 }
-.password-dialog-notice {
+.profile-segmented {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.readonly-input {
+  color: var(--muted);
+  background: var(--surface-muted);
+  cursor: default;
+}.password-dialog-notice {
   margin-bottom: 0;
 }
 .dialog-copy {

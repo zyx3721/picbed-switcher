@@ -30,15 +30,22 @@ export function usePicbedWorkspace() {
     validateAuthForm,
   } = useWorkspaceAuthForm({ showError, clearNotice });
   const {
-    passwordDialogOpen,
+    profileDialogOpen,
+    profileMode,
+    profileError,
     passwordForm,
+    emailForm,
     passwordErrors,
+    emailErrors,
     passwordFieldVisible,
     togglePasswordFieldVisible,
-    openPasswordDialog,
-    closePasswordDialog,
+    openProfileDialog,
+    closeProfileDialog,
+    setProfileMode,
     validatePasswordForm,
-  } = useWorkspacePasswordForm({ showError, clearNotice });
+    validateEmailForm,
+    setProfileError,
+  } = useWorkspacePasswordForm();
   const configs = ref<PicbedConfig[]>([]);
   const {
     typeDefs,
@@ -183,12 +190,19 @@ export function usePicbedWorkspace() {
     configTypeDropdownOpen.value = false;
     deleteTarget.value = null;
   }
+  function openProfileDialogForUser() {
+    clearNotice();
+    openProfileDialog();
+  }
+  function setProfileModeForUser(mode: 'password' | 'email') {
+    setProfileMode(mode);
+  }
   async function submitPasswordChange() {
     if (!validatePasswordForm()) return;
     loading.value = true;
     try {
       await request('/api/auth/password', { method: 'PUT', body: JSON.stringify(passwordForm) });
-      closePasswordDialog();
+      closeProfileDialog();
       token.value = '';
       user.value = null;
       configs.value = [];
@@ -200,7 +214,26 @@ export function usePicbedWorkspace() {
     } catch (err) {
       const requestError = err as RequestError;
       if (requestError.status === 401) passwordErrors.old_password = true;
-      showError(requestError.status === 401 ? '旧密码不正确' : requestError.message || '密码修改失败');
+      setProfileError(requestError.status === 401 ? '旧密码不正确' : requestError.message || '密码修改失败');
+    } finally {
+      loading.value = false;
+    }
+  }
+  async function submitEmailChange() {
+    if (!user.value || !validateEmailForm(user.value.email || '')) return;
+    loading.value = true;
+    try {
+      const data = await request<{ user: User; message: string }>('/api/auth/email', {
+        method: 'PUT',
+        body: JSON.stringify(emailForm),
+      });
+      user.value = data.user;
+      closeProfileDialog();
+      showMessage('邮箱已修改');
+    } catch (err) {
+      const requestError = err as RequestError;
+      if (requestError.status === 400 || requestError.status === 409) emailErrors.email = true;
+      setProfileError(requestError.message || '邮箱修改失败');
     } finally {
       loading.value = false;
     }
@@ -211,7 +244,7 @@ export function usePicbedWorkspace() {
     configs.value = [];
     records.value = [];
     clearWorkspaceDrafts();
-    closePasswordDialog();
+    closeProfileDialog();
     clearAuthForm();
     localStorage.removeItem('picbed_token');
     showMessage('已退出登录');
@@ -257,9 +290,13 @@ export function usePicbedWorkspace() {
     authForm,
     authErrors,
     authPasswordVisible,
-    passwordDialogOpen,
+    profileDialogOpen,
+    profileMode,
+    profileError,
     passwordForm,
+    emailForm,
     passwordErrors,
+    emailErrors,
     passwordFieldVisible,
     togglePasswordFieldVisible,
     configForm,
@@ -301,9 +338,11 @@ export function usePicbedWorkspace() {
     clearAuthField,
     toggleAuthPasswordVisible,
     submitAuth,
-    openPasswordDialog,
-    closePasswordDialog,
+    openProfileDialog: openProfileDialogForUser,
+    closeProfileDialog,
+    setProfileMode: setProfileModeForUser,
     submitPasswordChange,
+    submitEmailChange,
     logout,
     resetConfigForm,
     resetConvertForm,

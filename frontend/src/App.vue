@@ -27,9 +27,13 @@ const {
   authForm,
   authErrors,
   authPasswordVisible,
-  passwordDialogOpen,
+  profileDialogOpen,
+  profileMode,
+  profileError,
   passwordForm,
+  emailForm,
   passwordErrors,
+  emailErrors,
   passwordFieldVisible,
   togglePasswordFieldVisible,
   configForm,
@@ -71,9 +75,11 @@ const {
   clearAuthField,
   toggleAuthPasswordVisible,
   submitAuth,
-  openPasswordDialog,
-  closePasswordDialog,
+  openProfileDialog,
+  closeProfileDialog,
+  setProfileMode,
   submitPasswordChange,
+  submitEmailChange,
   logout,
   resetConfigForm,
   resetConvertForm,
@@ -99,14 +105,14 @@ const {
 
 provideWorkspace({
   user, activeTab, authMode, message, error, errorNoticeKey, loading, booting, authForm, authErrors, authPasswordVisible,
-  passwordDialogOpen, passwordForm, passwordErrors, passwordFieldVisible, togglePasswordFieldVisible,
+  profileDialogOpen, profileMode, profileError, passwordForm, emailForm, passwordErrors, emailErrors, passwordFieldVisible, togglePasswordFieldVisible,
   configForm, configErrors, convertForm, pasteForm, configs, records, batchFiles, deleteTarget,
   targetDropdownOpen, configTypeDropdownOpen, uploadDragActive, githubProxyDialogOpen, githubProxyEnabled, githubProxyURL,
   secretVisibility,
   isAuthed, supportedTypes, selectedFields, targetConfigs, selectedTargetConfig, totalImages, convertedCount,
   canConvertBatch, hasGithubImages, successRecords, typeLabel, fieldLabel, fieldPlaceholder, secretFieldVisible, toggleSecretField,
   statusLabel, targetConfigLabel, selectTargetConfig, selectConfigType, handleConfigTypeChange, switchAuthMode,
-  clearAuthField, toggleAuthPasswordVisible, submitAuth, openPasswordDialog, closePasswordDialog, submitPasswordChange,
+  clearAuthField, toggleAuthPasswordVisible, submitAuth, openProfileDialog, closeProfileDialog, setProfileMode, submitPasswordChange, submitEmailChange,
   logout, resetConfigForm, resetConvertForm, setActiveTab, editConfig, saveConfig, requestDeleteConfig, cancelDeleteConfig,
   confirmDeleteConfig, setDefault, handleFiles, handleFileDrop, addPastedDocument, removeBatchFile, analyzeBatch,
   convertBatch, closeGithubProxyDialog, confirmGithubProxyConvert, downloadFile, downloadAll, loadRecords,
@@ -123,7 +129,7 @@ provideWorkspace({
       <OverviewMetrics />
       <WorkspaceTabs />
       <p v-if="message" class="notice success">{{ message }}</p>
-      <p v-if="error" class="notice error">{{ error }}</p>
+      <p v-if="error && !profileDialogOpen" class="notice error">{{ error }}</p>
 
       <ConvertPanel v-if="activeTab === 'convert'" />
       <ConfigsPanel v-if="activeTab === 'configs'" />

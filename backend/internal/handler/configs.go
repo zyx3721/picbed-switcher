@@ -16,8 +16,24 @@ import (
 	"gorm.io/gorm"
 )
 
+// picbedTypes godoc
+// @Summary 获取支持的图床类型与配置字段
+// @Tags picbed
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} picbedTypesResponse
+// @Failure 401 {object} errorResponse
+// @Router /api/picbed/types [get]
 func (a *API) picbedTypes(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"types": picbedTypeDefs}) }
 
+// listConfigs godoc
+// @Summary 获取所有图床配置
+// @Tags picbed
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} configsResponse
+// @Failure 401 {object} errorResponse
+// @Router /api/picbed/configs [get]
 func (a *API) listConfigs(c *gin.Context) {
 	userID := middleware.UserID(c)
 	if err := a.normalizeDefaultConfig(userID); err != nil {
@@ -37,6 +53,17 @@ func (a *API) listConfigs(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"configs": items})
 }
 
+// createConfig godoc
+// @Summary 添加图床配置
+// @Tags picbed
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body picbedConfigRequest true "图床配置"
+// @Success 201 {object} configResponseDoc
+// @Failure 400 {object} errorResponse
+// @Failure 409 {object} errorResponse
+// @Router /api/picbed/configs [post]
 func (a *API) createConfig(c *gin.Context) {
 	var req picbedConfigRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -77,6 +104,19 @@ func (a *API) createConfig(c *gin.Context) {
 	}
 	c.JSON(http.StatusCreated, gin.H{"config": configResponse(item, true, nil)})
 }
+
+// updateConfig godoc
+// @Summary 更新图床配置
+// @Tags picbed
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "配置 ID"
+// @Param request body picbedConfigRequest true "图床配置"
+// @Success 200 {object} configResponseDoc
+// @Failure 400 {object} errorResponse
+// @Failure 404 {object} errorResponse
+// @Router /api/picbed/configs/{id} [put]
 func (a *API) updateConfig(c *gin.Context) {
 	item, ok := a.findConfig(c)
 	if !ok {
@@ -124,6 +164,16 @@ func (a *API) updateConfig(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"config": configResponse(item, true, nil)})
 }
+
+// deleteConfig godoc
+// @Summary 删除图床配置
+// @Tags picbed
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "配置 ID"
+// @Success 200 {object} messageResponse
+// @Failure 404 {object} errorResponse
+// @Router /api/picbed/configs/{id} [delete]
 func (a *API) deleteConfig(c *gin.Context) {
 	item, ok := a.findConfig(c)
 	if !ok {
@@ -135,6 +185,16 @@ func (a *API) deleteConfig(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "图床配置已删除"})
 }
+
+// setDefaultConfig godoc
+// @Summary 设置默认图床配置
+// @Tags picbed
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "配置 ID"
+// @Success 200 {object} configResponseDoc
+// @Failure 404 {object} errorResponse
+// @Router /api/picbed/configs/{id}/default [put]
 func (a *API) setDefaultConfig(c *gin.Context) {
 	item, ok := a.findConfig(c)
 	if !ok {

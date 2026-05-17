@@ -11,6 +11,15 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// register godoc
+// @Summary 用户注册
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body authRequest true "注册信息"
+// @Success 201 {object} map[string]interface{}
+// @Failure 400 {object} map[string]string
+// @Router /api/auth/register [post]
 func (a *API) register(c *gin.Context) {
 	var req authRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -70,14 +79,28 @@ func (a *API) register(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"token": token, "user": publicUser(user)})
 }
 
+// login godoc
+// @Summary 用户名或邮箱登录
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body authRequest true "登录信息"
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {object} map[string]string
+// @Router /api/auth/login [post]
 func (a *API) login(c *gin.Context) {
 	var req authRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		respondError(c, http.StatusBadRequest, "请求参数格式不正确")
 		return
 	}
+	identity := strings.TrimSpace(req.Username)
+	if identity == "" || req.Password == "" {
+		respondError(c, http.StatusBadRequest, "用户名或邮箱、密码不能为空")
+		return
+	}
 	var user model.User
-	if err := a.db.Where("username = ?", strings.TrimSpace(req.Username)).First(&user).Error; err != nil {
+	if err := a.db.Where("username = ? OR lower(email) = ?", identity, strings.ToLower(identity)).First(&user).Error; err != nil {
 		respondError(c, http.StatusUnauthorized, "用户名或密码不正确")
 		return
 	}
@@ -93,6 +116,13 @@ func (a *API) login(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"token": token, "user": publicUser(user)})
 }
 
+// profile godoc
+// @Summary 获取当前用户信息
+// @Tags auth
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Router /api/auth/profile [get]
 func (a *API) profile(c *gin.Context) {
 	var user model.User
 	if err := a.db.First(&user, middleware.UserID(c)).Error; err != nil {
@@ -101,6 +131,16 @@ func (a *API) profile(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"user": publicUser(user)})
 }
+
+// changePassword godoc
+// @Summary 修改当前用户密码
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body changePasswordRequest true "密码信息"
+// @Success 200 {object} map[string]string
+// @Router /api/auth/password [put]
 func (a *API) changePassword(c *gin.Context) {
 	var req changePasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -141,6 +181,56 @@ func (a *API) changePassword(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "密码已修改"})
 }
 
+// changeEmail godoc
+// @Summary 修改当前用户邮箱
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body changeEmailRequest true "邮箱信息"
+// @Success 200 {object} map[string]interface{}
+// @Router /api/auth/email [put]
+func (a *API) changeEmail(c *gin.Context) {
+	var req changeEmailRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "请求参数格式不正确")
+		return
+	}
+	newEmail := strings.ToLower(strings.TrimSpace(req.Email))
+	if newEmail == "" {
+		respondError(c, http.StatusBadRequest, "邮箱不能为空")
+		return
+	}
+	if !emailPattern.MatchString(newEmail) {
+		respondError(c, http.StatusBadRequest, "邮箱格式不正确")
+		return
+	}
+
+	var user model.User
+	if err := a.db.First(&user, middleware.UserID(c)).Error; err != nil {
+		respondError(c, http.StatusNotFound, "用户不存在")
+		return
+	}
+	if strings.EqualFold(user.Email, newEmail) {
+		respondError(c, http.StatusBadRequest, "新邮箱不能与当前邮箱相同")
+		return
+	}
+	var count int64
+	if err := a.db.Model(&model.User{}).Where("lower(email) = ? AND id <> ?", newEmail, user.ID).Count(&count).Error; err != nil {
+		respondError(c, http.StatusInternalServerError, "检查邮箱失败")
+		return
+	}
+	if count > 0 {
+		respondError(c, http.StatusConflict, "邮箱已存在，请更换邮箱")
+		return
+	}
+	if err := a.db.Model(&user).Update("email", newEmail).Error; err != nil {
+		respondError(c, http.StatusInternalServerError, "邮箱修改失败")
+		return
+	}
+	user.Email = newEmail
+	c.JSON(http.StatusOK, gin.H{"message": "邮箱已修改", "user": publicUser(user)})
+}
 func publicUser(user model.User) gin.H {
 	return gin.H{"id": user.ID, "username": user.Username, "email": user.Email, "created_at": user.CreatedAt}
 }

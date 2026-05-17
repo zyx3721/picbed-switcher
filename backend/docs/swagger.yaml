@@ -1,0 +1,585 @@
+basePath: /
+definitions:
+  handler.analyzeMarkdownResponse:
+    properties:
+      counts:
+        additionalProperties:
+          type: integer
+        type: object
+      images:
+        items:
+          $ref: '#/definitions/utils.MarkdownImage'
+        type: array
+      total:
+        type: integer
+    type: object
+  handler.authRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+      username:
+        type: string
+    type: object
+  handler.batchConvertResponse:
+    properties:
+      results:
+        items:
+          additionalProperties: true
+          type: object
+        type: array
+    type: object
+  handler.batchMarkdownRequest:
+    properties:
+      files:
+        items:
+          $ref: '#/definitions/handler.markdownRequest'
+        type: array
+      target_config_id:
+        type: integer
+    type: object
+  handler.changeEmailRequest:
+    properties:
+      email:
+        type: string
+    type: object
+  handler.changePasswordRequest:
+    properties:
+      confirm_password:
+        type: string
+      new_password:
+        type: string
+      old_password:
+        type: string
+    type: object
+  handler.configField:
+    properties:
+      key:
+        type: string
+      label:
+        type: string
+      placeholder:
+        type: string
+      required:
+        type: boolean
+      secret:
+        type: boolean
+    type: object
+  handler.configResponseDoc:
+    properties:
+      config:
+        additionalProperties: true
+        type: object
+    type: object
+  handler.configsResponse:
+    properties:
+      configs:
+        items:
+          additionalProperties: true
+          type: object
+        type: array
+    type: object
+  handler.convertMarkdownResponse:
+    properties:
+      changed:
+        type: integer
+      content:
+        type: string
+      filename:
+        type: string
+      record:
+        $ref: '#/definitions/model.ConversionRecord'
+      status:
+        type: string
+    type: object
+  handler.errorResponse:
+    properties:
+      error:
+        example: 请求失败
+        type: string
+    type: object
+  handler.markdownRequest:
+    properties:
+      content:
+        type: string
+      filename:
+        type: string
+      target_config_id:
+        type: integer
+    type: object
+  handler.messageResponse:
+    properties:
+      message:
+        example: 操作成功
+        type: string
+    type: object
+  handler.picbedConfigRequest:
+    properties:
+      config:
+        additionalProperties:
+          type: string
+        type: object
+      config_name:
+        type: string
+      is_default:
+        type: boolean
+      picbed_type:
+        type: string
+    type: object
+  handler.picbedTypeDef:
+    properties:
+      description:
+        type: string
+      fields:
+        items:
+          $ref: '#/definitions/handler.configField'
+        type: array
+      label:
+        type: string
+      value:
+        type: string
+    type: object
+  handler.picbedTypesResponse:
+    properties:
+      types:
+        items:
+          $ref: '#/definitions/handler.picbedTypeDef'
+        type: array
+    type: object
+  handler.recordsResponse:
+    properties:
+      records:
+        items:
+          $ref: '#/definitions/model.ConversionRecord'
+        type: array
+    type: object
+  model.ConversionRecord:
+    properties:
+      created_at:
+        type: string
+      error_message:
+        type: string
+      id:
+        type: integer
+      image_count:
+        type: integer
+      original_filename:
+        type: string
+      source_picbed:
+        type: string
+      status:
+        description: success/failed/processing
+        type: string
+      target_picbed:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  utils.MarkdownImage:
+    properties:
+      alt:
+        type: string
+      picbed:
+        type: string
+      raw:
+        type: string
+      url:
+        type: string
+    type: object
+info:
+  contact: {}
+  description: Markdown 图床批量转换平台 API
+  title: PicBed Switcher API
+  version: "1.0"
+paths:
+  /api/auth/email:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 邮箱信息
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.changeEmailRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 修改当前用户邮箱
+      tags:
+      - auth
+  /api/auth/login:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 登录信息
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.authRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 用户名或邮箱登录
+      tags:
+      - auth
+  /api/auth/password:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 密码信息
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.changePasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 修改当前用户密码
+      tags:
+      - auth
+  /api/auth/profile:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 获取当前用户信息
+      tags:
+      - auth
+  /api/auth/register:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 注册信息
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.authRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 用户注册
+      tags:
+      - auth
+  /api/convert/analyze:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Markdown 内容
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.markdownRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.analyzeMarkdownResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 分析 Markdown 文档中的图片地址
+      tags:
+      - convert
+  /api/convert/batch:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 批量转换请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.batchMarkdownRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.batchConvertResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 批量执行 Markdown 文档转换
+      tags:
+      - convert
+  /api/convert/process:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 转换请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.markdownRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.convertMarkdownResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 执行单个 Markdown 文档转换
+      tags:
+      - convert
+  /api/convert/records:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.recordsResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 获取转换历史
+      tags:
+      - convert
+  /api/picbed/configs:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.configsResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 获取所有图床配置
+      tags:
+      - picbed
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 图床配置
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.picbedConfigRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.configResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 添加图床配置
+      tags:
+      - picbed
+  /api/picbed/configs/{id}:
+    delete:
+      parameters:
+      - description: 配置 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.messageResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 删除图床配置
+      tags:
+      - picbed
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 配置 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 图床配置
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.picbedConfigRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.configResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 更新图床配置
+      tags:
+      - picbed
+  /api/picbed/configs/{id}/default:
+    put:
+      parameters:
+      - description: 配置 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.configResponseDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 设置默认图床配置
+      tags:
+      - picbed
+  /api/picbed/types:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.picbedTypesResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 获取支持的图床类型与配置字段
+      tags:
+      - picbed
+  /health:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.messageResponse'
+      summary: 服务健康检查
+      tags:
+      - base
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

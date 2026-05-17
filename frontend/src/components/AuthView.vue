@@ -38,9 +38,15 @@ const {
         <p>{{ authMode === 'login' ? '登录您的账户以继续' : '创建账户后开始管理图床配置' }}</p>
       </div>
       <label :class="{ invalid: authErrors.username }">
-        <span class="field-label-text">用户名</span>
+        <span class="field-label-text">{{ authMode === 'login' ? '用户名或邮箱' : '用户名' }}</span>
         <div class="auth-input-wrap">
-          <input v-model.trim="authForm.username" :class="{ invalid: authErrors.username }" autocomplete="username" placeholder="请输入用户名" @input="authErrors.username = false" />
+          <input
+            v-model.trim="authForm.username"
+            :class="{ invalid: authErrors.username }"
+            autocomplete="username"
+            :placeholder="authMode === 'login' ? '请输入用户名或邮箱' : '请输入用户名'"
+            @input="authErrors.username = false"
+          />
           <button v-if="authForm.username" class="field-action" type="button" aria-label="清空用户名" @click="clearAuthField('username')">
             <X :size="18" />
           </button>
