@@ -1,0 +1,41 @@
+services:
+  #  ----------------------------------------------------------------
+  # 新建 PostgreSQL 容器（使用已有容器时注释此块）
+  # -----------------------------------------------------------------
+  postgres:
+    image: postgres:17-alpine
+    container_name: picbed-postgres
+    restart: unless-stopped
+    networks:
+      - picbed_network
+    ports:
+      - 5432:5432
+    volumes:
+      - ./PgSqlData:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      TZ: Asia/Shanghai
+
+  picbed:
+    image: registry.cn-shenzhen.aliyuncs.com/zyx3721/picbed-switcher:latest
+    container_name: picbed-switcher
+    restart: unless-stopped
+    networks:
+      - picbed_network
+    ports:
+      - 80:80
+    env_file:
+      - .env
+    volumes:
+      - ./PicBedData:/app/data
+    # ----------------------------------------------------------------
+    # 依赖新建容器（使用已有容器时注释此块）
+    # ----------------------------------------------------------------
+    depends_on:
+      - postgres
+
+networks:
+  picbed_network:
+    driver: bridge

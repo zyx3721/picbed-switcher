@@ -1,0 +1,31 @@
+# Node 依赖（平台相关，在 Docker 内重新安装）
+node_modules/
+frontend/node_modules/
+
+# 构建产物（在 Docker 内重新构建）
+frontend/dist/
+
+# 环境变量文件（含敏感信息，禁止打包进镜像）
+.env
+.env.*
+**/.env
+**/.env.*
+
+# Git 历史
+.git/
+.gitignore
+
+# 日志
+**/*.log
+
+# IDE
+.vscode/
+.idea/
+
+# 文档文件（不参与构建）
+*.md
+**/*.md
+README.md
+CHANGELOG.md
+other/
+
