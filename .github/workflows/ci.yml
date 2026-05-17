@@ -41,10 +41,10 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version: '1.25'
-          cache-dependency-path: server/go.sum
+          cache-dependency-path: backend/go.sum
 
       - name: 交叉编译多平台二进制文件
-        working-directory: server
+        working-directory: backend
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
           mkdir -p dist
@@ -57,35 +57,35 @@ jobs:
           }
 
           echo "🔨 编译 Linux AMD64..."
-          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w -X 'picbed_switcher/internal/service.AppVersion=${VERSION}'" -o picbed-switcher ./cmd/main.go
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o picbed-switcher ./cmd/main.go
           prepare_package "dist/linux_amd64"
           mv picbed-switcher dist/linux_amd64/
           tar -czf dist/picbed-switcher_${VERSION}_linux_amd64.tar.gz -C dist linux_amd64
           rm -rf dist/linux_amd64
 
           echo "🔨 编译 Linux ARM64..."
-          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w -X 'picbed_switcher/internal/service.AppVersion=${VERSION}'" -o picbed-switcher ./cmd/main.go
+          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o picbed-switcher ./cmd/main.go
           prepare_package "dist/linux_arm64"
           mv picbed-switcher dist/linux_arm64/
           tar -czf dist/picbed-switcher_${VERSION}_linux_arm64.tar.gz -C dist linux_arm64
           rm -rf dist/linux_arm64
 
           echo "🔨 编译 macOS AMD64..."
-          GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w -X 'picbed_switcher/internal/service.AppVersion=${VERSION}'" -o picbed-switcher ./cmd/main.go
+          GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o picbed-switcher ./cmd/main.go
           prepare_package "dist/darwin_amd64"
           mv picbed-switcher dist/darwin_amd64/
           tar -czf dist/picbed-switcher_${VERSION}_darwin_amd64.tar.gz -C dist darwin_amd64
           rm -rf dist/darwin_amd64
 
           echo "🔨 编译 macOS ARM64..."
-          GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w -X 'picbed_switcher/internal/service.AppVersion=${VERSION}'" -o picbed-switcher ./cmd/main.go
+          GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o picbed-switcher ./cmd/main.go
           prepare_package "dist/darwin_arm64"
           mv picbed-switcher dist/darwin_arm64/
           tar -czf dist/picbed-switcher_${VERSION}_darwin_arm64.tar.gz -C dist darwin_arm64
           rm -rf dist/darwin_arm64
 
           echo "🔨 编译 Windows AMD64..."
-          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w -X 'picbed_switcher/internal/service.AppVersion=${VERSION}'" -o picbed-switcher.exe ./cmd/main.go
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o picbed-switcher.exe ./cmd/main.go
           prepare_package "dist/windows_amd64"
           mv picbed-switcher.exe dist/windows_amd64/
           cd dist && zip -r picbed-switcher_${VERSION}_windows_amd64.zip windows_amd64 && cd ..
@@ -164,6 +164,6 @@ jobs:
           prerelease: ${{ steps.changelog.outputs.is_prerelease == 'true' }}
           generate_release_notes: false
           files: |
-            server/dist/*.tar.gz
-            server/dist/*.zip
-            server/dist/checksums.txt
+            backend/dist/*.tar.gz
+            backend/dist/*.zip
+            backend/dist/checksums.txt
