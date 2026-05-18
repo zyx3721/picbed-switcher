@@ -367,6 +367,26 @@ paths:
       summary: 批量执行 Markdown 文档转换
       tags:
       - convert
+  /api/convert/local-batch:
+    post:
+      consumes:
+      - multipart/form-data
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.batchConvertResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 批量上传 Markdown 中引用的本地图片并替换地址
+      tags:
+      - convert
   /api/convert/process:
     post:
       consumes:

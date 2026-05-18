@@ -44,6 +44,26 @@ export type BatchFile = {
   error: string;
 };
 
+export type LocalDocument = {
+  id: string;
+  filename: string;
+  content: string;
+  references: MarkdownImage[];
+  matched: number;
+  missing: string[];
+  convertedContent: string;
+  changed: number;
+  status: 'ready' | 'analyzed' | 'success' | 'failed';
+  error: string;
+};
+
+export type LocalImageFile = {
+  key: string;
+  name: string;
+  path: string;
+  file: File;
+};
+
 export type RequestError = Error & { status?: number };
 
-export type WorkspaceTab = 'convert' | 'configs' | 'records';
+export type WorkspaceTab = 'convert' | 'localUpload' | 'configs' | 'records';

@@ -4,7 +4,7 @@ import type { RequestError } from './types';
 export function createWorkspaceRequest(getToken: () => string) {
   return async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const headers = new Headers(options.headers);
-    headers.set('Content-Type', 'application/json');
+    if (!(options.body instanceof FormData)) headers.set('Content-Type', 'application/json');
     const token = getToken();
     if (token) headers.set('Authorization', `Bearer ${token}`);
     const response = await fetch(apiURL(path), { ...options, headers });

@@ -1,15 +1,16 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { ArrowRightLeft, History, Settings } from 'lucide-vue-next';
+import { ArrowRightLeft, FolderUp, History, Settings } from 'lucide-vue-next';
 import { useWorkspaceContext } from '../../composables/useWorkspaceContext';
 
-type WorkspaceTab = 'convert' | 'configs' | 'records';
+type WorkspaceTab = 'convert' | 'localUpload' | 'configs' | 'records';
 
 const { activeTab, setActiveTab, isAuthed, booting } = useWorkspaceContext();
-const tabOrder: WorkspaceTab[] = ['convert', 'configs', 'records'];
+const tabOrder: WorkspaceTab[] = ['convert', 'localUpload', 'configs', 'records'];
 const tabsRef = ref<HTMLElement | null>(null);
 const tabButtonRefs = ref<Record<WorkspaceTab, HTMLButtonElement | null>>({
   convert: null,
+  localUpload: null,
   configs: null,
   records: null,
 });
@@ -70,6 +71,9 @@ onBeforeUnmount(() => {
     <span class="tabs-indicator" :style="tabsIndicatorStyle" aria-hidden="true"></span>
     <button :ref="el => setTabButtonRef('convert', el)" :class="{ active: activeTab === 'convert' }" @click="handleTabClick('convert')">
       <ArrowRightLeft :size="18" />批量转换
+    </button>
+    <button :ref="el => setTabButtonRef('localUpload', el)" :class="{ active: activeTab === 'localUpload' }" @click="handleTabClick('localUpload')">
+      <FolderUp :size="18" />本地上传
     </button>
     <button :ref="el => setTabButtonRef('configs', el)" :class="{ active: activeTab === 'configs' }" @click="handleTabClick('configs')">
       <Settings :size="18" />图床配置

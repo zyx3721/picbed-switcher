@@ -3,6 +3,7 @@ import { useWorkspaceAuthForm } from './workspace/authForm';
 import { useWorkspaceConfigActions } from './workspace/configActions';
 import { useWorkspaceConfigForm } from './workspace/configForm';
 import { useWorkspaceConvert } from './workspace/convertWorkspace';
+import { useWorkspaceLocalUpload } from './workspace/localUploadWorkspace';
 import { useWorkspaceNotices } from './workspace/notices';
 import { useWorkspacePasswordForm } from './workspace/passwordForm';
 import { createWorkspaceRequest } from './workspace/request';
@@ -74,6 +75,7 @@ export function usePicbedWorkspace() {
 
   function closeDropdowns() {
     targetDropdownOpen.value = false;
+    localTargetDropdownOpen.value = false;
     configTypeDropdownOpen.value = false;
   }
   function handleGlobalPointerDown(event: PointerEvent) {
@@ -123,6 +125,43 @@ export function usePicbedWorkspace() {
     downloadFile,
     downloadAll,
   } = useWorkspaceConvert({
+    configs,
+    request,
+    showMessage,
+    showError,
+    clearNotice,
+    loadRecords: () => reloadRecords(),
+    typeLabel,
+    loading,
+  });
+  const {
+    localTargetConfigId,
+    localTargetDropdownOpen,
+    localDocumentDragActive,
+    localImageDragActive,
+    localDocuments,
+    localImages,
+    localTargetConfigs,
+    selectedLocalTargetConfig,
+    localMatchedCount,
+    localMissingCount,
+    localConvertedCount,
+    canUploadLocalBatch,
+    localTargetConfigLabel,
+    selectLocalTargetConfig,
+    localStatusLabel,
+    resetLocalUploadForm,
+    handleLocalDocumentFiles,
+    handleLocalDocumentDrop,
+    handleLocalImageFiles,
+    handleLocalImageDrop,
+    removeLocalDocument,
+    removeLocalImage,
+    analyzeLocalBatch,
+    uploadLocalBatch,
+    downloadLocalFile,
+    downloadAllLocalFiles,
+  } = useWorkspaceLocalUpload({
     configs,
     request,
     showMessage,
@@ -187,6 +226,7 @@ export function usePicbedWorkspace() {
   function clearWorkspaceDrafts() {
     resetConfigForm();
     resetConvertForm();
+    resetLocalUploadForm();
     configTypeDropdownOpen.value = false;
     deleteTarget.value = null;
   }
@@ -262,6 +302,7 @@ export function usePicbedWorkspace() {
   function setActiveTab(tab: WorkspaceTab) {
     if (activeTab.value === 'configs' || tab === 'configs') resetConfigForm();
     if (activeTab.value === 'convert' || tab === 'convert') resetConvertForm();
+    if (activeTab.value === 'localUpload' || tab === 'localUpload') resetLocalUploadForm();
     activeTab.value = tab;
   }
   onMounted(() => {
@@ -313,6 +354,12 @@ export function usePicbedWorkspace() {
     githubProxyDialogOpen,
     githubProxyEnabled,
     githubProxyURL,
+    localTargetConfigId,
+    localTargetDropdownOpen,
+    localDocumentDragActive,
+    localImageDragActive,
+    localDocuments,
+    localImages,
     secretVisibility,
     isAuthed,
     supportedTypes,
@@ -323,6 +370,12 @@ export function usePicbedWorkspace() {
     convertedCount,
     canConvertBatch,
     hasGithubImages,
+    localTargetConfigs,
+    selectedLocalTargetConfig,
+    localMatchedCount,
+    localMissingCount,
+    localConvertedCount,
+    canUploadLocalBatch,
     successRecords,
     typeLabel,
     fieldLabel,
@@ -331,7 +384,9 @@ export function usePicbedWorkspace() {
     toggleSecretField,
     statusLabel,
     targetConfigLabel,
+    localTargetConfigLabel,
     selectTargetConfig,
+    selectLocalTargetConfig,
     selectConfigType,
     handleConfigTypeChange,
     switchAuthMode,
@@ -357,12 +412,23 @@ export function usePicbedWorkspace() {
     handleFileDrop,
     addPastedDocument,
     removeBatchFile,
+    localStatusLabel,
+    handleLocalDocumentFiles,
+    handleLocalDocumentDrop,
+    handleLocalImageFiles,
+    handleLocalImageDrop,
+    removeLocalDocument,
+    removeLocalImage,
     analyzeBatch,
     convertBatch,
+    analyzeLocalBatch,
+    uploadLocalBatch,
     closeGithubProxyDialog,
     confirmGithubProxyConvert,
     downloadFile,
     downloadAll,
+    downloadLocalFile,
+    downloadAllLocalFiles,
     loadRecords,
   };
 }

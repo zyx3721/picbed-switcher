@@ -10,6 +10,7 @@ import GithubProxyDialog from './components/dialogs/GithubProxyDialog.vue';
 import PasswordDialog from './components/dialogs/PasswordDialog.vue';
 import OverviewMetrics from './components/workspace/OverviewMetrics.vue';
 import ConvertPanel from './components/workspace/ConvertPanel.vue';
+import LocalUploadPanel from './components/workspace/LocalUploadPanel.vue';
 import ConfigsPanel from './components/workspace/ConfigsPanel.vue';
 import RecordsPanel from './components/workspace/RecordsPanel.vue';
 import WorkspaceHeader from './components/workspace/WorkspaceHeader.vue';
@@ -50,6 +51,12 @@ const {
   githubProxyDialogOpen,
   githubProxyEnabled,
   githubProxyURL,
+  localTargetConfigId,
+  localTargetDropdownOpen,
+  localDocumentDragActive,
+  localImageDragActive,
+  localDocuments,
+  localImages,
   secretVisibility,
   isAuthed,
   supportedTypes,
@@ -60,6 +67,12 @@ const {
   convertedCount,
   canConvertBatch,
   hasGithubImages,
+  localTargetConfigs,
+  selectedLocalTargetConfig,
+  localMatchedCount,
+  localMissingCount,
+  localConvertedCount,
+  canUploadLocalBatch,
   successRecords,
   typeLabel,
   fieldLabel,
@@ -68,7 +81,9 @@ const {
   toggleSecretField,
   statusLabel,
   targetConfigLabel,
+  localTargetConfigLabel,
   selectTargetConfig,
+  selectLocalTargetConfig,
   selectConfigType,
   handleConfigTypeChange,
   switchAuthMode,
@@ -94,12 +109,23 @@ const {
   handleFileDrop,
   addPastedDocument,
   removeBatchFile,
+  localStatusLabel,
+  handleLocalDocumentFiles,
+  handleLocalDocumentDrop,
+  handleLocalImageFiles,
+  handleLocalImageDrop,
+  removeLocalDocument,
+  removeLocalImage,
   analyzeBatch,
   convertBatch,
+  analyzeLocalBatch,
+  uploadLocalBatch,
   closeGithubProxyDialog,
   confirmGithubProxyConvert,
   downloadFile,
   downloadAll,
+  downloadLocalFile,
+  downloadAllLocalFiles,
   loadRecords,
 } = usePicbedWorkspace();
 
@@ -108,14 +134,18 @@ provideWorkspace({
   profileDialogOpen, profileMode, profileError, passwordForm, emailForm, passwordErrors, emailErrors, passwordFieldVisible, togglePasswordFieldVisible,
   configForm, configErrors, convertForm, pasteForm, configs, records, batchFiles, deleteTarget,
   targetDropdownOpen, configTypeDropdownOpen, uploadDragActive, githubProxyDialogOpen, githubProxyEnabled, githubProxyURL,
+  localTargetConfigId, localTargetDropdownOpen, localDocumentDragActive, localImageDragActive, localDocuments, localImages,
   secretVisibility,
   isAuthed, supportedTypes, selectedFields, targetConfigs, selectedTargetConfig, totalImages, convertedCount,
-  canConvertBatch, hasGithubImages, successRecords, typeLabel, fieldLabel, fieldPlaceholder, secretFieldVisible, toggleSecretField,
-  statusLabel, targetConfigLabel, selectTargetConfig, selectConfigType, handleConfigTypeChange, switchAuthMode,
+  canConvertBatch, hasGithubImages, localTargetConfigs, selectedLocalTargetConfig, localMatchedCount, localMissingCount,
+  localConvertedCount, canUploadLocalBatch, successRecords, typeLabel, fieldLabel, fieldPlaceholder, secretFieldVisible, toggleSecretField,
+  statusLabel, targetConfigLabel, localTargetConfigLabel, selectTargetConfig, selectLocalTargetConfig, selectConfigType, handleConfigTypeChange, switchAuthMode,
   clearAuthField, toggleAuthPasswordVisible, submitAuth, openProfileDialog, closeProfileDialog, setProfileMode, submitPasswordChange, submitEmailChange,
   logout, resetConfigForm, resetConvertForm, setActiveTab, editConfig, saveConfig, requestDeleteConfig, cancelDeleteConfig,
-  confirmDeleteConfig, setDefault, handleFiles, handleFileDrop, addPastedDocument, removeBatchFile, analyzeBatch,
-  convertBatch, closeGithubProxyDialog, confirmGithubProxyConvert, downloadFile, downloadAll, loadRecords,
+  confirmDeleteConfig, setDefault, handleFiles, handleFileDrop, addPastedDocument, removeBatchFile, localStatusLabel,
+  handleLocalDocumentFiles, handleLocalDocumentDrop, handleLocalImageFiles, handleLocalImageDrop, removeLocalDocument, removeLocalImage,
+  analyzeBatch, convertBatch, analyzeLocalBatch, uploadLocalBatch, closeGithubProxyDialog, confirmGithubProxyConvert,
+  downloadFile, downloadAll, downloadLocalFile, downloadAllLocalFiles, loadRecords,
 });
 
 </script>
@@ -132,6 +162,7 @@ provideWorkspace({
       <p v-if="error && !profileDialogOpen" class="notice error">{{ error }}</p>
 
       <ConvertPanel v-if="activeTab === 'convert'" />
+      <LocalUploadPanel v-if="activeTab === 'localUpload'" />
       <ConfigsPanel v-if="activeTab === 'configs'" />
       <RecordsPanel v-if="activeTab === 'records'" />
     </section>

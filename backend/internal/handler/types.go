@@ -69,6 +69,22 @@ type batchMarkdownRequest struct {
 	TargetConfigID uint              `json:"target_config_id"`
 }
 
+type localImageMapping struct {
+	Source  string `json:"source"`
+	FileKey string `json:"file_key"`
+}
+
+type localMarkdownDocument struct {
+	Filename string              `json:"filename"`
+	Content  string              `json:"content"`
+	Images   []localImageMapping `json:"images"`
+}
+
+type localBatchManifest struct {
+	TargetConfigID uint                    `json:"target_config_id"`
+	Documents      []localMarkdownDocument `json:"documents"`
+}
+
 type errorResponse struct {
 	Error string `json:"error" example:"请求失败"`
 }

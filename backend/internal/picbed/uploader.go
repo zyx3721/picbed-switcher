@@ -83,6 +83,21 @@ func DownloadImage(ctx context.Context, rawURL string) (ImageFile, error) {
 	return ImageFile{Filename: buildFilename(parsed, contentType, data), ContentType: contentType, Data: data}, nil
 }
 
+func NewImageFile(filename string, reader io.Reader) (ImageFile, error) {
+	data, err := io.ReadAll(io.LimitReader(reader, maxImageSize+1))
+	if err != nil {
+		return ImageFile{}, err
+	}
+	if len(data) > maxImageSize {
+		return ImageFile{}, errors.New("图片大小不能超过 20MB")
+	}
+	contentType := http.DetectContentType(data)
+	if !strings.HasPrefix(contentType, "image/") {
+		return ImageFile{}, errors.New("上传文件不是有效图片")
+	}
+	return ImageFile{Filename: buildLocalFilename(filename, contentType), ContentType: contentType, Data: data}, nil
+}
+
 func Upload(ctx context.Context, picbedType string, cfg map[string]string, image ImageFile) (UploadResult, error) {
 	if picbedType != "easyimage" {
 		image.Filename = formatFilename(cfg["filename_format"], image)
@@ -336,6 +351,25 @@ func doJSON(req *http.Request, output any) error {
 
 func buildFilename(parsed *url.URL, contentType string, data []byte) string {
 	base := path.Base(parsed.Path)
+	if base == "." || base == "/" || base == "" {
+		base = "image"
+	}
+	base = safeFilenameChars.ReplaceAllString(base, "-")
+	base = strings.Trim(base, ".-")
+	if base == "" {
+		base = "image"
+	}
+	if path.Ext(base) == "" {
+		if exts, _ := mime.ExtensionsByType(contentType); len(exts) > 0 {
+			base += exts[0]
+		}
+	}
+	return base
+}
+
+func buildLocalFilename(filename string, contentType string) string {
+	base := strings.ReplaceAll(strings.TrimSpace(filename), `\`, "/")
+	base = path.Base(base)
 	if base == "." || base == "/" || base == "" {
 		base = "image"
 	}
