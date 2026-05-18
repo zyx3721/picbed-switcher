@@ -857,11 +857,18 @@ server {
 
 # 七、版本历史
 
+## v2.0.0 - 2026-05-18
+
+- 新增本地上传功能，可将 Markdown 中引用的本地图片上传到目标图床并替换为远程地址。
+- 新增全局处理中弹窗，批量转换和本地上传替换时可查看当前处理进度、成功数与失败数。
+- 批量转换与本地上传替换改为逐文档执行，降低长耗时任务期间误刷新和重复提交风险。
+- 新增 `/api/convert/local-batch` 接口，支持通过 `multipart/form-data` 提交本地图片和路径映射清单。
+- 详细更新日志见 [verchanglog/v2.0.0.md](verchanglog/v2.0.0.md)。
+
 ## v1.0.0 - 2026-05-18
 
 - 首个正式版本，完成图床转站助手核心功能闭环。
 - 支持用户认证、图床配置管理、Markdown 图片地址分析、单文档转换、批量转换和转换历史记录。
-- 支持本地图片上传，可将 Markdown 中引用的本地图片上传到目标图床并替换为远程地址。
 - 支持 GitHub、Gitee、腾讯云 COS、阿里云 OSS、七牛云、EasyImage 和兼容通用接口的图床服务。
 - 提供 Vue 3 前端工作台、Go/Gin 后端 API、PostgreSQL 数据库初始化、Docker Compose 部署配置和 Swagger 接口文档。
 - 详细更新日志见 [verchanglog/v1.0.0.md](verchanglog/v1.0.0.md)。
