@@ -954,6 +954,15 @@ uploads/{timestamp}-{origin}{ext}
 
 # 七、版本历史
 
+## v2.1.0 - 2026-05-18
+
+- 新增忘记密码功能，支持通过邮箱接收一次性密码重置链接。
+- 新增 `/api/auth/password/forgot` 和 `/api/auth/password/reset` 接口。
+- 新增 SMTP 邮件配置，支持 `auto`、`ssl`、`starttls`、`none` 安全模式和发件人显示名。
+- 新增 HTML 卡片式密码重置邮件模板，并保留纯文本 fallback。
+- 修复重置链接场景下前端工作区上下文类型缺失导致的构建失败问题。
+- 详细更新日志见 [verchanglog/v2.1.0.md](verchanglog/v2.1.0.md)。
+
 ## v2.0.0 - 2026-05-18
 
 - 新增本地上传功能，可将 Markdown 中引用的本地图片上传到目标图床并替换为远程地址。
