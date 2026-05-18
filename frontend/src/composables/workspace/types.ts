@@ -64,6 +64,21 @@ export type LocalImageFile = {
   file: File;
 };
 
+export type TaskProgressStatus = 'idle' | 'running' | 'success' | 'failed';
+
+export type TaskProgressState = {
+  open: boolean;
+  title: string;
+  message: string;
+  detail: string;
+  current: number;
+  total: number;
+  success: number;
+  failed: number;
+  status: TaskProgressStatus;
+  closable: boolean;
+};
+
 export type RequestError = Error & { status?: number };
 
 export type WorkspaceTab = 'convert' | 'localUpload' | 'configs' | 'records';

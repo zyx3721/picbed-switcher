@@ -7,6 +7,7 @@ import { useWorkspaceLocalUpload } from './workspace/localUploadWorkspace';
 import { useWorkspaceNotices } from './workspace/notices';
 import { useWorkspacePasswordForm } from './workspace/passwordForm';
 import { createWorkspaceRequest } from './workspace/request';
+import { useTaskProgress } from './workspace/taskProgress';
 import { useWorkspaceData } from './workspace/workspaceData';
 import type { ConversionRecord, PicbedConfig, RequestError, User, WorkspaceTab } from './workspace/types';
 
@@ -17,6 +18,7 @@ export function usePicbedWorkspace() {
   const { message, error, errorNoticeKey, showMessage, showError, clearNotice, clearErrorTimer } = useWorkspaceNotices();
   const loading = ref(false);
   const booting = ref(true);
+  const { taskProgress, startTaskProgress, updateTaskProgress, finishTaskProgress, closeTaskProgress } = useTaskProgress();
   let bootTimer: ReturnType<typeof window.setTimeout> | undefined;
 
   const {
@@ -133,6 +135,9 @@ export function usePicbedWorkspace() {
     loadRecords: () => reloadRecords(),
     typeLabel,
     loading,
+    startTaskProgress,
+    updateTaskProgress,
+    finishTaskProgress,
   });
   const {
     localTargetConfigId,
@@ -170,6 +175,9 @@ export function usePicbedWorkspace() {
     loadRecords: () => reloadRecords(),
     typeLabel,
     loading,
+    startTaskProgress,
+    updateTaskProgress,
+    finishTaskProgress,
   });
   const { loadWorkspaceData, loadConfigs, loadRecords } = useWorkspaceData({
     request,
@@ -328,6 +336,7 @@ export function usePicbedWorkspace() {
     errorNoticeKey,
     loading,
     booting,
+    taskProgress,
     authForm,
     authErrors,
     authPasswordVisible,
@@ -340,6 +349,7 @@ export function usePicbedWorkspace() {
     emailErrors,
     passwordFieldVisible,
     togglePasswordFieldVisible,
+    closeTaskProgress,
     configForm,
     configErrors,
     convertForm,

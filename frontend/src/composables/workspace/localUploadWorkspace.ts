@@ -13,6 +13,9 @@ type LocalUploadWorkspaceDeps = {
   loadRecords: () => Promise<void>;
   typeLabel: (value: string) => string;
   loading: Ref<boolean>;
+  startTaskProgress: (input: { title: string; message: string; total: number; detail?: string }) => void;
+  updateTaskProgress: (input: { message?: string; detail?: string; current?: number; success?: number; failed?: number }) => void;
+  finishTaskProgress: (input: { status: 'success' | 'failed'; message: string; detail?: string }) => void;
 };
 
 type LocalUploadResult = {
@@ -30,6 +33,9 @@ export function useWorkspaceLocalUpload({
   loadRecords,
   typeLabel,
   loading,
+  startTaskProgress,
+  updateTaskProgress,
+  finishTaskProgress,
 }: LocalUploadWorkspaceDeps) {
   const localTargetConfigId = ref(0);
   const localTargetDropdownOpen = ref(false);
@@ -160,24 +166,59 @@ export function useWorkspaceLocalUpload({
       showError('未匹配到本地图片，无需上传');
       return;
     }
-    const manifest = buildLocalManifest();
-    const formData = new FormData();
-    formData.append('manifest', JSON.stringify({ target_config_id: localTargetConfigId.value, documents: manifest.documents }));
-    for (const image of manifest.images) formData.append(image.key, image.file, image.name);
     loading.value = true;
+    startTaskProgress({
+      title: '本地上传替换中',
+      message: '正在准备上传并替换',
+      detail: `共 ${localDocuments.value.length} 个文档，${localMatchedCount.value} 张本地图片。`,
+      total: localDocuments.value.length,
+    });
     try {
-      const data = await request<LocalUploadResult>('/api/convert/local-batch', { method: 'POST', body: formData });
-      data.results.forEach((result, index) => {
-        const document = localDocuments.value[index];
-        if (!document) return;
-        document.status = result.status === 'success' ? 'success' : 'failed';
-        document.convertedContent = result.content || '';
-        document.changed = result.changed || 0;
-        document.error = result.error || '';
+      let success = 0;
+      let failed = 0;
+      for (const [index, document] of localDocuments.value.entries()) {
+        updateTaskProgress({
+          current: index + 1,
+          success,
+          failed,
+          message: `正在上传替换第 ${index + 1} / ${localDocuments.value.length} 个文档`,
+          detail: `${document.filename} · 已匹配 ${document.matched} 张本地图片。`,
+        });
+        const manifest = buildSingleLocalManifest(document);
+        const formData = new FormData();
+        formData.append('manifest', JSON.stringify({ target_config_id: localTargetConfigId.value, documents: [manifest.document] }));
+        for (const image of manifest.images) formData.append(image.key, image.file, image.name);
+        try {
+          const data = await request<LocalUploadResult>('/api/convert/local-batch', { method: 'POST', body: formData });
+          const result = data.results[0];
+          document.status = result?.status === 'success' ? 'success' : 'failed';
+          document.convertedContent = result?.content || '';
+          document.changed = result?.changed || 0;
+          document.error = result?.error || '';
+        } catch (err) {
+          document.status = 'failed';
+          document.convertedContent = '';
+          document.changed = 0;
+          document.error = err instanceof Error ? err.message : '本地图片上传失败';
+        }
+        if (document.status === 'success') success += 1;
+        else failed += 1;
+        updateTaskProgress({ current: index + 1, success, failed });
+      }
+      const finalStatus = failed > 0 ? 'failed' : 'success';
+      finishTaskProgress({
+        status: finalStatus,
+        message: `本地图片上传完成，成功 ${success} 个，失败 ${failed} 个`,
+        detail: '可以关闭此窗口并下载替换后的文档。',
       });
       showMessage(`本地图片上传完成，成功 ${localConvertedCount.value} 个文档`);
       await loadRecords();
     } catch (err) {
+      finishTaskProgress({
+        status: 'failed',
+        message: '本地图片上传失败',
+        detail: err instanceof Error ? err.message : '本地图片上传失败',
+      });
       showError(err instanceof Error ? err.message : '本地图片上传失败');
       await loadRecords();
     } finally {
@@ -214,9 +255,9 @@ export function useWorkspaceLocalUpload({
       document.error = '';
     }
   }
-  function buildLocalManifest() {
+  function buildSingleLocalManifest(document: LocalDocument) {
     const usedImages = new Map<string, LocalImageFile>();
-    const documents = localDocuments.value.map(document => ({
+    const item = {
       filename: document.filename,
       content: document.content,
       images: document.references.flatMap(reference => {
@@ -225,8 +266,8 @@ export function useWorkspaceLocalUpload({
         usedImages.set(image.key, image);
         return [{ source: reference.url, file_key: image.key }];
       }),
-    }));
-    return { documents, images: Array.from(usedImages.values()) };
+    };
+    return { document: item, images: Array.from(usedImages.values()) };
   }
   function findLocalImage(source: string) {
     const normalizedSource = normalizeLocalPath(source);

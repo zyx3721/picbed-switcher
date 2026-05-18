@@ -14,6 +14,9 @@ type ConvertWorkspaceDeps = {
   loadRecords: () => Promise<void>;
   typeLabel: (value: string) => string;
   loading: Ref<boolean>;
+  startTaskProgress: (input: { title: string; message: string; total: number; detail?: string }) => void;
+  updateTaskProgress: (input: { message?: string; detail?: string; current?: number; success?: number; failed?: number }) => void;
+  finishTaskProgress: (input: { status: 'success' | 'failed'; message: string; detail?: string }) => void;
 };
 
 export function useWorkspaceConvert({
@@ -25,6 +28,9 @@ export function useWorkspaceConvert({
   loadRecords,
   typeLabel,
   loading,
+  startTaskProgress,
+  updateTaskProgress,
+  finishTaskProgress,
 }: ConvertWorkspaceDeps) {
   const convertForm = reactive({ target_config_id: 0 });
   const pasteForm = reactive({ filename: 'pasted.md', content: '' });
@@ -182,30 +188,63 @@ export function useWorkspaceConvert({
   async function runConvertBatch(githubProxyURLForConvert: string) {
     loading.value = true;
     githubProxyDialogOpen.value = false;
+    startTaskProgress({
+      title: '批量转换处理中',
+      message: '正在准备批量转换',
+      detail: `共 ${batchFiles.value.length} 个文档，${totalImages.value} 个图片地址。`,
+      total: batchFiles.value.length,
+    });
     try {
-      const data = await request<{
-        results: Array<{ filename: string; content?: string; changed?: number; status: string; error?: string }>;
-      }>('/api/convert/batch', {
-        method: 'POST',
-        body: JSON.stringify({
-          target_config_id: convertForm.target_config_id,
-          files: batchFiles.value.map(file => ({
-            filename: file.filename,
-            content: githubProxyURLForConvert ? withGithubProxy(file.content, githubProxyURLForConvert) : file.content,
-          })),
-        }),
-      });
-      data.results.forEach((result, index) => {
-        const file = batchFiles.value[index];
-        if (!file) return;
-        file.status = result.status === 'success' ? 'success' : 'failed';
-        file.convertedContent = result.content || '';
-        file.changed = result.changed || 0;
-        file.error = result.error || '';
+      let success = 0;
+      let failed = 0;
+      for (const [index, file] of batchFiles.value.entries()) {
+        updateTaskProgress({
+          current: index + 1,
+          success,
+          failed,
+          message: `正在转换第 ${index + 1} / ${batchFiles.value.length} 个文档`,
+          detail: `${file.filename} · ${file.images.length} 个图片地址。`,
+        });
+        try {
+          const result = await request<{ filename: string; content?: string; changed?: number; status: string; error?: string }>(
+            '/api/convert/process',
+            {
+              method: 'POST',
+              body: JSON.stringify({
+                target_config_id: convertForm.target_config_id,
+                filename: file.filename,
+                content: githubProxyURLForConvert ? withGithubProxy(file.content, githubProxyURLForConvert) : file.content,
+              }),
+            }
+          );
+          file.status = result.status === 'success' ? 'success' : 'failed';
+          file.convertedContent = result.content || '';
+          file.changed = result.changed || 0;
+          file.error = result.error || '';
+        } catch (err) {
+          file.status = 'failed';
+          file.convertedContent = '';
+          file.changed = 0;
+          file.error = err instanceof Error ? err.message : '转换失败';
+        }
+        if (file.status === 'success') success += 1;
+        else failed += 1;
+        updateTaskProgress({ current: index + 1, success, failed });
+      }
+      const finalStatus = failed > 0 ? 'failed' : 'success';
+      finishTaskProgress({
+        status: finalStatus,
+        message: `批量转换完成，成功 ${success} 个，失败 ${failed} 个`,
+        detail: '可以关闭此窗口并下载已转换的文档。',
       });
       showMessage(`批量转换完成，成功 ${convertedCount.value} 个文件`);
       await loadRecords();
     } catch (err) {
+      finishTaskProgress({
+        status: 'failed',
+        message: '批量转换失败',
+        detail: err instanceof Error ? err.message : '批量转换失败',
+      });
       showError(err instanceof Error ? err.message : '批量转换失败');
       await loadRecords();
     } finally {

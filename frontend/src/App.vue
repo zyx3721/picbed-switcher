@@ -8,6 +8,7 @@ import BootScreen from './components/BootScreen.vue';
 import DeleteConfigDialog from './components/dialogs/DeleteConfigDialog.vue';
 import GithubProxyDialog from './components/dialogs/GithubProxyDialog.vue';
 import PasswordDialog from './components/dialogs/PasswordDialog.vue';
+import TaskProgressDialog from './components/dialogs/TaskProgressDialog.vue';
 import OverviewMetrics from './components/workspace/OverviewMetrics.vue';
 import ConvertPanel from './components/workspace/ConvertPanel.vue';
 import LocalUploadPanel from './components/workspace/LocalUploadPanel.vue';
@@ -25,6 +26,7 @@ const {
   errorNoticeKey,
   loading,
   booting,
+  taskProgress,
   authForm,
   authErrors,
   authPasswordVisible,
@@ -37,6 +39,7 @@ const {
   emailErrors,
   passwordFieldVisible,
   togglePasswordFieldVisible,
+  closeTaskProgress,
   configForm,
   configErrors,
   convertForm,
@@ -131,7 +134,9 @@ const {
 
 provideWorkspace({
   user, activeTab, authMode, message, error, errorNoticeKey, loading, booting, authForm, authErrors, authPasswordVisible,
+  taskProgress,
   profileDialogOpen, profileMode, profileError, passwordForm, emailForm, passwordErrors, emailErrors, passwordFieldVisible, togglePasswordFieldVisible,
+  closeTaskProgress,
   configForm, configErrors, convertForm, pasteForm, configs, records, batchFiles, deleteTarget,
   targetDropdownOpen, configTypeDropdownOpen, uploadDragActive, githubProxyDialogOpen, githubProxyEnabled, githubProxyURL,
   localTargetConfigId, localTargetDropdownOpen, localDocumentDragActive, localImageDragActive, localDocuments, localImages,
@@ -168,6 +173,7 @@ provideWorkspace({
     </section>
     <PasswordDialog />
     <GithubProxyDialog />
+    <TaskProgressDialog />
     <DeleteConfigDialog />
   </main>
 </template>
