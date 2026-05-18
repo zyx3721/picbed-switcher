@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jerion/picbed-switcher/internal/middleware"
 	"github.com/jerion/picbed-switcher/internal/model"
+	"github.com/jerion/picbed-switcher/internal/picbed"
 	"github.com/jerion/picbed-switcher/internal/utils"
 	"gorm.io/gorm"
 )
@@ -33,6 +34,7 @@ func (a *API) picbedTypes(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"types":
 // @Security BearerAuth
 // @Success 200 {object} configsResponse
 // @Failure 401 {object} errorResponse
+// @Failure 500 {object} errorResponse
 // @Router /api/picbed/configs [get]
 func (a *API) listConfigs(c *gin.Context) {
 	userID := middleware.UserID(c)
@@ -62,7 +64,9 @@ func (a *API) listConfigs(c *gin.Context) {
 // @Param request body picbedConfigRequest true "图床配置"
 // @Success 201 {object} configResponseDoc
 // @Failure 400 {object} errorResponse
+// @Failure 401 {object} errorResponse
 // @Failure 409 {object} errorResponse
+// @Failure 500 {object} errorResponse
 // @Router /api/picbed/configs [post]
 func (a *API) createConfig(c *gin.Context) {
 	var req picbedConfigRequest
@@ -115,7 +119,10 @@ func (a *API) createConfig(c *gin.Context) {
 // @Param request body picbedConfigRequest true "图床配置"
 // @Success 200 {object} configResponseDoc
 // @Failure 400 {object} errorResponse
+// @Failure 401 {object} errorResponse
 // @Failure 404 {object} errorResponse
+// @Failure 409 {object} errorResponse
+// @Failure 500 {object} errorResponse
 // @Router /api/picbed/configs/{id} [put]
 func (a *API) updateConfig(c *gin.Context) {
 	item, ok := a.findConfig(c)
@@ -165,6 +172,64 @@ func (a *API) updateConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"config": configResponse(item, true, nil)})
 }
 
+// testConfigDraft godoc
+// @Summary 测试未保存的图床配置
+// @Tags picbed
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body picbedConfigRequest true "图床配置"
+// @Success 200 {object} messageResponse
+// @Failure 400 {object} errorResponse
+// @Failure 401 {object} errorResponse
+// @Failure 500 {object} errorResponse
+// @Router /api/picbed/configs/test [post]
+func (a *API) testConfigDraft(c *gin.Context) {
+	var req picbedConfigRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "请求参数格式不正确")
+		return
+	}
+	if err := validatePicbedConfig(req); err != nil {
+		respondError(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := picbed.TestConfig(c.Request.Context(), req.PicBedType, normalizeConfig(req.PicBedType, req.Config)); err != nil {
+		respondError(c, http.StatusBadRequest, "配置测试失败："+err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "配置测试通过"})
+}
+
+// testConfigSaved godoc
+// @Summary 测试已保存的图床配置
+// @Tags picbed
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "配置 ID"
+// @Success 200 {object} messageResponse
+// @Failure 400 {object} errorResponse
+// @Failure 401 {object} errorResponse
+// @Failure 404 {object} errorResponse
+// @Failure 500 {object} errorResponse
+// @Router /api/picbed/configs/{id}/test [post]
+func (a *API) testConfigSaved(c *gin.Context) {
+	item, ok := a.findConfig(c)
+	if !ok {
+		return
+	}
+	configMap, err := a.decryptConfigMap(item.EncryptedConfig)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "读取图床配置失败")
+		return
+	}
+	if err := picbed.TestConfig(c.Request.Context(), item.PicBedType, configMap); err != nil {
+		respondError(c, http.StatusBadRequest, "配置测试失败："+err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "配置测试通过"})
+}
+
 // deleteConfig godoc
 // @Summary 删除图床配置
 // @Tags picbed
@@ -172,7 +237,10 @@ func (a *API) updateConfig(c *gin.Context) {
 // @Security BearerAuth
 // @Param id path int true "配置 ID"
 // @Success 200 {object} messageResponse
+// @Failure 400 {object} errorResponse
+// @Failure 401 {object} errorResponse
 // @Failure 404 {object} errorResponse
+// @Failure 500 {object} errorResponse
 // @Router /api/picbed/configs/{id} [delete]
 func (a *API) deleteConfig(c *gin.Context) {
 	item, ok := a.findConfig(c)
@@ -193,7 +261,10 @@ func (a *API) deleteConfig(c *gin.Context) {
 // @Security BearerAuth
 // @Param id path int true "配置 ID"
 // @Success 200 {object} configResponseDoc
+// @Failure 400 {object} errorResponse
+// @Failure 401 {object} errorResponse
 // @Failure 404 {object} errorResponse
+// @Failure 500 {object} errorResponse
 // @Router /api/picbed/configs/{id}/default [put]
 func (a *API) setDefaultConfig(c *gin.Context) {
 	item, ok := a.findConfig(c)
@@ -228,8 +299,12 @@ func (a *API) findConfig(c *gin.Context) (model.PicBedConfig, bool) {
 	return item, ok
 }
 func (a *API) findConfigByID(c *gin.Context, id uint) (model.PicBedConfig, bool) {
+	return a.findConfigByIDForUser(middleware.UserID(c), id)
+}
+
+func (a *API) findConfigByIDForUser(userID uint, id uint) (model.PicBedConfig, bool) {
 	var item model.PicBedConfig
-	if err := a.db.Where("id = ? AND user_id = ?", id, middleware.UserID(c)).First(&item).Error; err != nil {
+	if err := a.db.Where("id = ? AND user_id = ?", id, userID).First(&item).Error; err != nil {
 		return model.PicBedConfig{}, false
 	}
 	return item, true

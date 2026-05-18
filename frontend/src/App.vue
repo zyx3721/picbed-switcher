@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { provideWorkspace } from './composables/useWorkspaceContext';
-import {
-} from 'lucide-vue-next';
+import { X } from 'lucide-vue-next';
 import { usePicbedWorkspace } from './composables/usePicbedWorkspace';
 import AuthView from './components/AuthView.vue';
 import BootScreen from './components/BootScreen.vue';
@@ -24,6 +23,8 @@ const {
   message,
   error,
   errorNoticeKey,
+  toast,
+  toastNoticeKey,
   loading,
   booting,
   taskProgress,
@@ -46,6 +47,8 @@ const {
   pasteForm,
   configs,
   records,
+  recordDetail,
+  recordDetailOpen,
   batchFiles,
   deleteTarget,
   targetDropdownOpen,
@@ -105,6 +108,7 @@ const {
   setActiveTab,
   editConfig,
   saveConfig,
+  testConfig,
   requestDeleteConfig,
   cancelDeleteConfig,
   confirmDeleteConfig,
@@ -126,19 +130,24 @@ const {
   uploadLocalBatch,
   closeGithubProxyDialog,
   confirmGithubProxyConvert,
+  togglePreview,
+  changedLines,
   downloadFile,
   downloadAll,
   downloadLocalFile,
   downloadAllLocalFiles,
   loadRecords,
+  openRecordDetail,
+  closeRecordDetail,
+  resendEmailVerification,
 } = usePicbedWorkspace();
 
 provideWorkspace({
-  user, activeTab, authMode, message, error, errorNoticeKey, loading, booting, authForm, authErrors, authPasswordVisible,
+  user, activeTab, authMode, message, error, errorNoticeKey, toast, toastNoticeKey, loading, booting, authForm, authErrors, authPasswordVisible,
   taskProgress,
   profileDialogOpen, profileMode, profileError, passwordForm, emailForm, passwordErrors, emailErrors, passwordFieldVisible, togglePasswordFieldVisible,
   closeTaskProgress,
-  configForm, configErrors, convertForm, pasteForm, configs, records, batchFiles, deleteTarget,
+  configForm, configErrors, convertForm, pasteForm, configs, records, recordDetail, recordDetailOpen, batchFiles, deleteTarget,
   targetDropdownOpen, configTypeDropdownOpen, uploadDragActive, githubProxyDialogOpen, githubProxyEnabled, githubProxyURL,
   localTargetConfigId, localTargetDropdownOpen, localDocumentDragActive, localImageDragActive, localDocuments, localImages,
   secretVisibility,
@@ -147,11 +156,12 @@ provideWorkspace({
   localConvertedCount, canUploadLocalBatch, successRecords, typeLabel, fieldLabel, fieldPlaceholder, secretFieldVisible, toggleSecretField,
   statusLabel, targetConfigLabel, localTargetConfigLabel, selectTargetConfig, selectLocalTargetConfig, selectConfigType, handleConfigTypeChange, switchAuthMode, activatePasswordReset,
   clearAuthField, toggleAuthPasswordVisible, submitAuth, openProfileDialog, closeProfileDialog, setProfileMode, submitPasswordChange, submitEmailChange,
-  logout, resetConfigForm, resetConvertForm, setActiveTab, editConfig, saveConfig, requestDeleteConfig, cancelDeleteConfig,
+  logout, resetConfigForm, resetConvertForm, setActiveTab, editConfig, saveConfig, testConfig, requestDeleteConfig, cancelDeleteConfig,
   confirmDeleteConfig, setDefault, handleFiles, handleFileDrop, addPastedDocument, removeBatchFile, localStatusLabel,
   handleLocalDocumentFiles, handleLocalDocumentDrop, handleLocalImageFiles, handleLocalImageDrop, removeLocalDocument, removeLocalImage,
   analyzeBatch, convertBatch, analyzeLocalBatch, uploadLocalBatch, closeGithubProxyDialog, confirmGithubProxyConvert,
-  downloadFile, downloadAll, downloadLocalFile, downloadAllLocalFiles, loadRecords,
+  togglePreview, changedLines, downloadFile, downloadAll, downloadLocalFile, downloadAllLocalFiles, loadRecords,
+  openRecordDetail, closeRecordDetail, resendEmailVerification,
 });
 
 </script>
@@ -159,8 +169,15 @@ provideWorkspace({
   <main class="app-shell">
     <BootScreen v-if="booting" />
     <AuthView v-if="!booting && !isAuthed" />
+    <div v-if="toast && isAuthed" :key="toastNoticeKey" class="auth-toast workspace-toast" role="alert">
+      <X :size="18" />
+      <span>{{ toast }}</span>
+      <button class="toast-close" type="button" aria-label="关闭提示" @click="toast = ''">
+        <X :size="18" />
+      </button>
+    </div>
 
-    <section v-else-if="!booting" class="workspace">
+    <section v-if="!booting && isAuthed" class="workspace">
       <WorkspaceHeader />
       <OverviewMetrics />
       <WorkspaceTabs />

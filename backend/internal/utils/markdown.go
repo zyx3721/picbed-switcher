@@ -37,12 +37,22 @@ func ExtractMarkdownImages(content string) []MarkdownImage {
 }
 
 func DetectPicBed(raw string) string {
-	parsed, err := url.Parse(raw)
+	parsed, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil {
 		return "unknown"
 	}
-	host := strings.ToLower(parsed.Host)
-	path := strings.ToLower(parsed.Path)
+	if detected := detectPicBedByHostAndPath(parsed.Host, parsed.Path); detected != "other" {
+		return detected
+	}
+	if embedded := extractEmbeddedURL(parsed); embedded != "" {
+		return DetectPicBed(embedded)
+	}
+	return "other"
+}
+
+func detectPicBedByHostAndPath(hostValue string, pathValue string) string {
+	host := strings.ToLower(hostValue)
+	path := strings.ToLower(pathValue)
 
 	switch {
 	case strings.Contains(host, "githubusercontent.com") || strings.Contains(host, "github.com"):
@@ -60,6 +70,48 @@ func DetectPicBed(raw string) string {
 	default:
 		return "other"
 	}
+}
+
+func extractEmbeddedURL(parsed *url.URL) string {
+	for _, value := range []string{parsed.Path, parsed.EscapedPath(), parsed.RawQuery} {
+		if embedded := firstEmbeddedURL(value); embedded != "" {
+			return embedded
+		}
+	}
+	return ""
+}
+
+func firstEmbeddedURL(value string) string {
+	current := value
+	for range 3 {
+		if embedded := firstHTTPURL(current); embedded != "" {
+			return embedded
+		}
+		unescaped, err := url.QueryUnescape(current)
+		if err != nil || unescaped == current {
+			break
+		}
+		current = unescaped
+	}
+	return ""
+}
+
+func firstHTTPURL(value string) string {
+	lower := strings.ToLower(value)
+	start := -1
+	for _, marker := range []string{"https://", "http://"} {
+		if index := strings.Index(lower, marker); index >= 0 && (start == -1 || index < start) {
+			start = index
+		}
+	}
+	if start == -1 {
+		return ""
+	}
+	candidate := value[start:]
+	if end := strings.IndexAny(candidate, " \t\r\n\"'<>)&"); end >= 0 {
+		candidate = candidate[:end]
+	}
+	return strings.TrimSpace(candidate)
 }
 
 func ReplaceImageHost(content string, source string, target string, targetBaseURL string) (string, int) {

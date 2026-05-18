@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/jerion/picbed-switcher/internal/handler"
 	"github.com/jerion/picbed-switcher/internal/middleware"
 	"github.com/joho/godotenv"
+	"github.com/redis/go-redis/v9"
 )
 
 // @title PicBed Switcher API
@@ -39,6 +41,16 @@ func main() {
 	router.Use(middleware.RateLimit(120, time.Minute))
 
 	api := handler.NewAPI(db, cfg)
+	if cfg.Redis.Enabled {
+		redisClient := redis.NewClient(&redis.Options{Addr: cfg.Redis.Addr, Password: cfg.Redis.Password, DB: cfg.Redis.DB})
+		if err := redisClient.Ping(context.Background()).Err(); err != nil {
+			log.Fatalf("Failed to connect Redis: %v", err)
+		}
+		defer redisClient.Close()
+		api.UseRedis(redisClient)
+		log.Printf("Redis conversion queue enabled: %s", cfg.Redis.ConvertQueue)
+	}
+	defer api.Close()
 	api.Register(router)
 
 	addr := cfg.Server.Host + ":" + cfg.Server.Port

@@ -90,5 +90,33 @@ export function useWorkspaceConfigActions({
     }
   }
 
-  return { saveConfig, requestDeleteConfig, cancelDeleteConfig, confirmDeleteConfig, setDefault };
+  async function testConfig(config?: PicbedConfig) {
+    loading.value = true;
+    try {
+      if (config) {
+        const data = await request<{ message: string }>(`/api/picbed/configs/${config.id}/test`, { method: 'POST' });
+        showMessage(data.message || '配置测试通过');
+        return;
+      }
+      if (!validateConfigForm()) return;
+      const payload = {
+        picbed_type: configForm.picbed_type,
+        config_name: configForm.config_name || '临时测试配置',
+        is_default: configForm.is_default,
+        config: selectedFields.value.reduce((values, field) => {
+          const value = configForm.values[field.key];
+          if (typeof value === 'string') values[field.key] = value;
+          return values;
+        }, {} as Record<string, string>),
+      };
+      const data = await request<{ message: string }>('/api/picbed/configs/test', { method: 'POST', body: JSON.stringify(payload) });
+      showMessage(data.message || '配置测试通过');
+    } catch (err) {
+      showError(err instanceof Error ? err.message : '配置测试失败');
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  return { saveConfig, requestDeleteConfig, cancelDeleteConfig, confirmDeleteConfig, setDefault, testConfig };
 }

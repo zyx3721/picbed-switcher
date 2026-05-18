@@ -1,4 +1,4 @@
-export type User = { id: number; username: string; email: string };
+export type User = { id: number; username: string; email: string; email_verified?: boolean; email_verified_at?: string | null };
 
 export type PicbedConfig = {
   id: number;
@@ -18,6 +18,17 @@ export type ConversionRecord = {
   status: string;
   error_message?: string;
   image_count: number;
+  converted_content?: string;
+  details?: ConversionRecordDetail[];
+  created_at: string;
+};
+
+export type ConversionRecordDetail = {
+  id: number;
+  original_url: string;
+  target_url: string;
+  status: string;
+  error?: string;
   created_at: string;
 };
 
@@ -42,6 +53,20 @@ export type BatchFile = {
   changed: number;
   status: 'ready' | 'analyzed' | 'success' | 'failed';
   error: string;
+  previewOpen?: boolean;
+};
+
+export type ConversionTask = {
+  id: number;
+  task_type: string;
+  status: string;
+  total: number;
+  success: number;
+  failed: number;
+  message: string;
+  error?: string;
+  created_at: string;
+  updated_at: string;
 };
 
 export type LocalDocument = {

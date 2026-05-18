@@ -25,10 +25,14 @@ type ConversionRecord struct {
 	Status           string    `gorm:"size:20;not null" json:"status"` // success/failed/processing
 	ErrorMessage     string    `gorm:"type:text" json:"error_message,omitempty"`
 	ImageCount       int       `gorm:"default:0" json:"image_count"`
+	TaskID           *uint     `gorm:"index" json:"task_id,omitempty"`
+	ConvertedContent string    `gorm:"type:text" json:"converted_content,omitempty"`
 	CreatedAt        time.Time `gorm:"index:idx_created_at" json:"created_at"`
 
 	// 关联
-	User User `gorm:"foreignKey:UserID" json:"-"`
+	User    User                     `gorm:"foreignKey:UserID" json:"-"`
+	Task    *ConversionTask          `gorm:"foreignKey:TaskID" json:"-"`
+	Details []ConversionRecordDetail `gorm:"foreignKey:RecordID" json:"details,omitempty"`
 }
 
 // TableName 指定表名

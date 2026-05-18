@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronDown, Download, FileSearch, Plus, Trash2, UploadCloud, Wand2 } from 'lucide-vue-next';
+import { ChevronDown, Download, Eye, FileSearch, Plus, Trash2, UploadCloud, Wand2 } from 'lucide-vue-next';
 import { useWorkspaceContext } from '../../composables/useWorkspaceContext';
 
 const {
@@ -22,6 +22,8 @@ const {
   removeBatchFile,
   statusLabel,
   downloadFile,
+  togglePreview,
+  changedLines,
   analyzeBatch,
   convertBatch,
   downloadAll,
@@ -79,12 +81,27 @@ const {
             class="ghost icon-only"
             type="button"
             :disabled="!file.convertedContent"
+            @click="togglePreview(file)"
+          >
+            <Eye :size="17" /></button
+          ><button
+            class="ghost icon-only"
+            type="button"
+            :disabled="!file.convertedContent"
             @click="downloadFile(file)"
           >
             <Download :size="17" /></button
           ><button class="danger icon-only" type="button" @click="removeBatchFile(file.id)">
             <Trash2 :size="17" />
           </button>
+        </div>
+        <div v-if="file.previewOpen" class="preview-diff">
+          <div v-for="row in changedLines(file)" :key="row.line" class="diff-row">
+            <span>#{{ row.line }}</span>
+            <code>- {{ row.before }}</code>
+            <code>+ {{ row.after }}</code>
+          </div>
+          <p v-if="changedLines(file).length === 0">暂无可展示的差异</p>
         </div>
       </div>
       <p v-if="batchFiles.length === 0" class="empty">上传多个 Markdown 文件后会出现在这里</p>

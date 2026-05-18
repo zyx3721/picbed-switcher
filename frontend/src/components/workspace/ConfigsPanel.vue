@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronDown, Eye, EyeOff, KeyRound, Plus, RefreshCw, Trash2 } from 'lucide-vue-next';
+import { ChevronDown, Eye, EyeOff, KeyRound, PlugZap, Plus, RefreshCw, Trash2 } from 'lucide-vue-next';
 import { useWorkspaceContext } from '../../composables/useWorkspaceContext';
 
 const {
@@ -19,6 +19,7 @@ const {
   handleConfigTypeChange,
   resetConfigForm,
   saveConfig,
+  testConfig,
   editConfig,
   setDefault,
   requestDeleteConfig,
@@ -110,6 +111,8 @@ const {
     <div class="actions">
       <button class="secondary" type="button" @click="resetConfigForm">
         <RefreshCw :size="18" />清空</button
+      ><button class="secondary" type="button" :disabled="loading" @click="testConfig()">
+        <PlugZap :size="18" />测试配置</button
       ><button class="primary" :disabled="loading" type="submit">
         <Plus :size="18" />保存配置
       </button>
@@ -138,6 +141,7 @@ const {
         </div>
         <div class="row-actions">
           <button class="ghost" type="button" @click="editConfig(item)">编辑</button
+          ><button class="ghost" type="button" :disabled="loading" @click="testConfig(item)">测试</button
           ><button class="ghost" type="button" @click="setDefault(item.id)">默认</button
           ><button
             class="danger icon-only"

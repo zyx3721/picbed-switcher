@@ -33,7 +33,7 @@ const isRunning = computed(() => taskProgress.status === 'running');
         <span>成功 {{ taskProgress.success }}</span>
         <span>失败 {{ taskProgress.failed }}</span>
       </div>
-      <p v-if="isRunning" class="task-progress-warning">处理中，请勿关闭或刷新页面。</p>
+      <p v-if="isRunning" class="task-progress-warning">处理中，刷新页面后仍会自动恢复当前进度。</p>
       <div v-else class="dialog-actions">
         <button class="primary" type="button" @click="closeTaskProgress">关闭</button>
       </div>

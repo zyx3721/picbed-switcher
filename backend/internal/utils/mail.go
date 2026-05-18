@@ -25,16 +25,24 @@ func SendPasswordResetMail(cfg MailConfig, to, resetURL string) error {
 	if strings.TrimSpace(cfg.Host) == "" || strings.TrimSpace(cfg.From) == "" {
 		return fmt.Errorf("mail service is not configured")
 	}
+	return sendMail(cfg, to, "PicBed Switcher 密码重置", buildPasswordResetMessage, resetURL)
+}
+
+func SendEmailVerificationMail(cfg MailConfig, to, verifyURL string) error {
+	if strings.TrimSpace(cfg.Host) == "" || strings.TrimSpace(cfg.From) == "" {
+		return fmt.Errorf("mail service is not configured")
+	}
+	return sendMail(cfg, to, "PicBed Switcher 邮箱验证", buildEmailVerificationMessage, verifyURL)
+}
+
+func sendMail(cfg MailConfig, to, subject string, builder func(string, string, string, string) string, actionURL string) error {
 	port := strings.TrimSpace(cfg.Port)
 	if port == "" {
 		port = "587"
 	}
 	addr := net.JoinHostPort(cfg.Host, port)
 	from := strings.TrimSpace(cfg.From)
-	fromHeader := fromAddressHeader(from, cfg.FromName)
-	subject := "PicBed Switcher 密码重置"
-	message := buildPasswordResetMessage(fromHeader, to, subject, resetURL)
-
+	message := builder(fromAddressHeader(from, cfg.FromName), to, subject, actionURL)
 	var auth smtp.Auth
 	if cfg.Username != "" || cfg.Password != "" {
 		auth = smtp.PlainAuth("", cfg.Username, cfg.Password, cfg.Host)
@@ -92,6 +100,31 @@ func buildPasswordResetMessage(from, to, subject, resetURL string) string {
 	}, "\r\n")
 }
 
+func buildEmailVerificationMessage(from, to, subject, verifyURL string) string {
+	boundary := fmt.Sprintf("picbed-verify-%d", time.Now().UnixNano())
+	textBody := fmt.Sprintf("您好，\n\n请点击以下链接验证您的 PicBed Switcher 账户邮箱：\n%s\n\n该链接将在限定时间后失效。如果不是您本人操作，请忽略此邮件。\n", verifyURL)
+	htmlBody := emailVerificationHTML(verifyURL)
+	return strings.Join([]string{
+		"From: " + from,
+		"To: " + to,
+		"Subject: " + subject,
+		"MIME-Version: 1.0",
+		"Content-Type: multipart/alternative; boundary=" + boundary,
+		"",
+		"--" + boundary,
+		"Content-Type: text/plain; charset=UTF-8",
+		"Content-Transfer-Encoding: 8bit",
+		"",
+		textBody,
+		"--" + boundary,
+		"Content-Type: text/html; charset=UTF-8",
+		"Content-Transfer-Encoding: 8bit",
+		"",
+		htmlBody,
+		"--" + boundary + "--",
+	}, "\r\n")
+}
+
 func passwordResetHTML(resetURL string) string {
 	escapedURL := html.EscapeString(resetURL)
 	return fmt.Sprintf(`<!doctype html>
@@ -123,6 +156,49 @@ func passwordResetHTML(resetURL string) string {
 			  <div style="padding:12px 14px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;color:#475569;font-size:13px;line-height:1.6;word-break:break-all;">%s</div>
 			</td>
 		  </tr>
+        </table>
+        <div style="max-width:640px;margin:28px auto 0;padding-top:24px;border-top:1px solid #e5e7eb;text-align:center;color:#94a3b8;font-size:14px;line-height:1.8;">
+          这是来自 <strong>PicBed Switcher</strong> 的账户安全邮件。<br>
+          如需忽略，请直接删除本邮件。
+        </div>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`, escapedURL, escapedURL)
+}
+
+func emailVerificationHTML(verifyURL string) string {
+	escapedURL := html.EscapeString(verifyURL)
+	return fmt.Sprintf(`<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PicBed Switcher 邮箱验证</title>
+</head>
+<body style="margin:0;padding:0;background:#f5f7fb;color:#1f2937;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',Arial,sans-serif;">
+  <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="background:#f5f7fb;padding:36px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="max-width:640px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 18px 40px rgba(15,23,42,0.10);">
+          <tr>
+            <td align="center" style="background:#12a7bd;padding:34px 24px;color:#ffffff;">
+              <div style="font-size:30px;line-height:1.25;font-weight:800;">✉️ 邮箱验证</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:42px 42px 34px;">
+              <h1 style="margin:0 0 18px;font-size:26px;line-height:1.35;color:#111827;font-weight:800;">验证您的 PicBed Switcher 邮箱</h1>
+              <p style="margin:0 0 14px;font-size:16px;line-height:1.8;color:#4b5563;">请点击下方按钮完成邮箱验证。验证后可以使用密码找回，并继续管理关键图床配置。</p>
+              <p style="margin:0 0 30px;font-size:15px;line-height:1.8;color:#6b7280;">如果不是您本人操作，请忽略此邮件。</p>
+              <div style="text-align:center;margin:34px 0 30px;">
+                <a href="%s" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#12a7bd;color:#ffffff;text-decoration:none;font-size:16px;font-weight:800;padding:14px 28px;border-radius:8px;box-shadow:0 12px 22px rgba(18,167,189,0.22);">验证邮箱</a>
+              </div>
+              <p style="margin:0 0 8px;font-size:13px;line-height:1.7;color:#9ca3af;">如果按钮无法打开，请复制以下原始链接到浏览器访问：</p>
+              <div style="padding:12px 14px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;color:#475569;font-size:13px;line-height:1.6;word-break:break-all;">%s</div>
+            </td>
+          </tr>
         </table>
         <div style="max-width:640px;margin:28px auto 0;padding-top:24px;border-top:1px solid #e5e7eb;text-align:center;color:#94a3b8;font-size:14px;line-height:1.8;">
           这是来自 <strong>PicBed Switcher</strong> 的账户安全邮件。<br>

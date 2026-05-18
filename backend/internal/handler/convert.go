@@ -1,19 +1,24 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jerion/picbed-switcher/internal/middleware"
 	"github.com/jerion/picbed-switcher/internal/model"
 	"github.com/jerion/picbed-switcher/internal/picbed"
 	"github.com/jerion/picbed-switcher/internal/utils"
+	"github.com/redis/go-redis/v9"
 )
 
 const maxLocalBatchUploadSize = 256 << 20
@@ -27,6 +32,7 @@ const maxLocalBatchUploadSize = 256 << 20
 // @Param request body markdownRequest true "Markdown 内容"
 // @Success 200 {object} analyzeMarkdownResponse
 // @Failure 400 {object} errorResponse
+// @Failure 401 {object} errorResponse
 // @Router /api/convert/analyze [post]
 func (a *API) analyzeMarkdown(c *gin.Context) {
 	var req markdownRequest
@@ -51,7 +57,9 @@ func (a *API) analyzeMarkdown(c *gin.Context) {
 // @Param request body markdownRequest true "转换请求"
 // @Success 200 {object} convertMarkdownResponse
 // @Failure 400 {object} errorResponse
+// @Failure 401 {object} errorResponse
 // @Failure 404 {object} errorResponse
+// @Failure 500 {object} errorResponse
 // @Router /api/convert/process [post]
 func (a *API) convertMarkdown(c *gin.Context) {
 	var req markdownRequest
@@ -76,6 +84,7 @@ func (a *API) convertMarkdown(c *gin.Context) {
 // @Param request body batchMarkdownRequest true "批量转换请求"
 // @Success 200 {object} batchConvertResponse
 // @Failure 400 {object} errorResponse
+// @Failure 401 {object} errorResponse
 // @Router /api/convert/batch [post]
 func (a *API) convertMarkdownBatch(c *gin.Context) {
 	var req batchMarkdownRequest
@@ -112,8 +121,13 @@ func (a *API) convertMarkdownBatch(c *gin.Context) {
 // @Accept multipart/form-data
 // @Produce json
 // @Security BearerAuth
+// @Param manifest formData string true "本地批量上传清单 JSON，结构为 localBatchManifest"
+// @Param images formData file false "本地图片文件，可按 manifest.images[].file_key 指定字段名上传；同一字段可提交多个文件"
 // @Success 200 {object} batchConvertResponse
 // @Failure 400 {object} errorResponse
+// @Failure 401 {object} errorResponse
+// @Failure 404 {object} errorResponse
+// @Failure 500 {object} errorResponse
 // @Router /api/convert/local-batch [post]
 func (a *API) convertLocalMarkdownBatch(c *gin.Context) {
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxLocalBatchUploadSize)
@@ -184,6 +198,7 @@ func (a *API) convertLocalOne(c *gin.Context, document localMarkdownDocument, ta
 		mappingBySource[source] = fileKey
 		mappingByNormalizedSource[normalizeLocalImageSource(source)] = fileKey
 	}
+	details := make([]model.ConversionRecordDetail, 0, len(images))
 	output, changed, err := utils.ReplaceImageURLs(document.Content, func(currentURL string) (string, error) {
 		if isHTTPImageURL(currentURL) {
 			return currentURL, nil
@@ -196,6 +211,7 @@ func (a *API) convertLocalOne(c *gin.Context, document localMarkdownDocument, ta
 			return "", fmt.Errorf("本地图片 %s 未匹配到上传文件", currentURL)
 		}
 		if uploadedURL, ok := uploadCache[fileKey]; ok {
+			details = append(details, model.ConversionRecordDetail{OriginalURL: currentURL, TargetURL: uploadedURL, Status: "success"})
 			return uploadedURL, nil
 		}
 		imageFile, err := readMultipartImage(files, fileKey)
@@ -207,6 +223,7 @@ func (a *API) convertLocalOne(c *gin.Context, document localMarkdownDocument, ta
 			return "", fmt.Errorf("上传图片 %s 失败：%w", currentURL, err)
 		}
 		uploadCache[fileKey] = result.URL
+		details = append(details, model.ConversionRecordDetail{OriginalURL: currentURL, TargetURL: result.URL, Status: "success"})
 		return result.URL, nil
 	})
 	if err != nil {
@@ -219,21 +236,22 @@ func (a *API) convertLocalOne(c *gin.Context, document localMarkdownDocument, ta
 		message = "没有本地图片地址被转换"
 	}
 	filename := documentFilename(document.Filename)
-	record := model.ConversionRecord{UserID: middleware.UserID(c), OriginalFilename: filename, SourcePicBed: "local", TargetPicBed: targetPicBed, Status: status, ErrorMessage: message, ImageCount: changed}
+	record := model.ConversionRecord{UserID: middleware.UserID(c), OriginalFilename: filename, SourcePicBed: "local", TargetPicBed: targetPicBed, Status: status, ErrorMessage: message, ImageCount: changed, ConvertedContent: output}
 	if err := a.db.Create(&record).Error; err != nil {
 		return nil, errors.New("保存转换记录失败")
 	}
+	a.saveRecordDetails(record.ID, details)
 	if status == "failed" {
 		return nil, errors.New(message)
 	}
 	return gin.H{"filename": filename, "content": output, "changed": changed, "status": status, "record": record}, nil
 }
 
-func (a *API) convertOne(c *gin.Context, req markdownRequest) (gin.H, int, error) {
+func (a *API) convertOneForUser(ctx context.Context, userID uint, req markdownRequest) (gin.H, int, error) {
 	if strings.TrimSpace(req.Content) == "" {
 		return nil, http.StatusBadRequest, errors.New("Markdown 内容不能为空")
 	}
-	target, ok := a.findConfigByID(c, req.TargetConfigID)
+	target, ok := a.findConfigByIDForUser(userID, req.TargetConfigID)
 	if !ok {
 		return nil, http.StatusNotFound, errors.New("目标图床配置不存在")
 	}
@@ -247,19 +265,22 @@ func (a *API) convertOne(c *gin.Context, req markdownRequest) (gin.H, int, error
 	}
 	sourcePicBed := summarizeSourcePicBeds(images)
 	uploadCache := map[string]string{}
+	details := make([]model.ConversionRecordDetail, 0, len(images))
 	output, changed, err := utils.ReplaceImageURLs(req.Content, func(currentURL string) (string, error) {
 		if uploadedURL, ok := uploadCache[currentURL]; ok {
+			details = append(details, model.ConversionRecordDetail{OriginalURL: currentURL, TargetURL: uploadedURL, Status: "success"})
 			return uploadedURL, nil
 		}
-		image, err := picbed.DownloadImage(c.Request.Context(), currentURL)
+		image, err := picbed.DownloadImage(ctx, currentURL)
 		if err != nil {
 			return "", fmt.Errorf("下载图片 %s 失败：%w", currentURL, err)
 		}
-		result, err := picbed.Upload(c.Request.Context(), target.PicBedType, targetConfig, image)
+		result, err := picbed.Upload(ctx, target.PicBedType, targetConfig, image)
 		if err != nil {
 			return "", fmt.Errorf("上传图片 %s 失败：%w", currentURL, err)
 		}
 		uploadCache[currentURL] = result.URL
+		details = append(details, model.ConversionRecordDetail{OriginalURL: currentURL, TargetURL: result.URL, Status: "success"})
 		return result.URL, nil
 	})
 	if err != nil {
@@ -275,14 +296,18 @@ func (a *API) convertOne(c *gin.Context, req markdownRequest) (gin.H, int, error
 	if filename == "" {
 		filename = "untitled.md"
 	}
-	record := model.ConversionRecord{UserID: middleware.UserID(c), OriginalFilename: filename, SourcePicBed: sourcePicBed, TargetPicBed: target.PicBedType, Status: status, ErrorMessage: message, ImageCount: changed}
+	record := model.ConversionRecord{UserID: userID, OriginalFilename: filename, SourcePicBed: sourcePicBed, TargetPicBed: target.PicBedType, Status: status, ErrorMessage: message, ImageCount: changed, ConvertedContent: output}
 	if err := a.db.Create(&record).Error; err != nil {
 		return nil, http.StatusInternalServerError, errors.New("保存转换记录失败")
 	}
+	a.saveRecordDetails(record.ID, details)
 	if status == "failed" {
 		return nil, http.StatusBadRequest, errors.New(message)
 	}
 	return gin.H{"filename": filename, "content": output, "changed": changed, "status": status, "record": record}, http.StatusOK, nil
+}
+func (a *API) convertOne(c *gin.Context, req markdownRequest) (gin.H, int, error) {
+	return a.convertOneForUser(c.Request.Context(), middleware.UserID(c), req)
 }
 
 // listRecords godoc
@@ -292,6 +317,7 @@ func (a *API) convertOne(c *gin.Context, req markdownRequest) (gin.H, int, error
 // @Security BearerAuth
 // @Success 200 {object} recordsResponse
 // @Failure 401 {object} errorResponse
+// @Failure 500 {object} errorResponse
 // @Router /api/convert/records [get]
 func (a *API) listRecords(c *gin.Context) {
 	var records []model.ConversionRecord
@@ -300,6 +326,302 @@ func (a *API) listRecords(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"records": records})
+}
+
+// getRecord godoc
+// @Summary 获取转换历史详情
+// @Tags convert
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "记录 ID"
+// @Success 200 {object} recordResponse
+// @Failure 400 {object} errorResponse
+// @Failure 401 {object} errorResponse
+// @Failure 404 {object} errorResponse
+// @Router /api/convert/records/{id} [get]
+func (a *API) getRecord(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		respondError(c, http.StatusBadRequest, "记录 ID 不正确")
+		return
+	}
+	var record model.ConversionRecord
+	if err := a.db.Preload("Details").Where("id = ? AND user_id = ?", id, middleware.UserID(c)).First(&record).Error; err != nil {
+		respondError(c, http.StatusNotFound, "转换记录不存在")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"record": record})
+}
+
+// createConvertTask godoc
+// @Summary 创建转换任务
+// @Tags convert
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body createConvertTaskRequest true "转换任务请求"
+// @Success 202 {object} taskCreateResponse
+// @Failure 400 {object} errorResponse
+// @Failure 401 {object} errorResponse
+// @Failure 500 {object} errorResponse
+// @Router /api/convert/tasks [post]
+func (a *API) createConvertTask(c *gin.Context) {
+	var req createConvertTaskRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "请求参数格式不正确")
+		return
+	}
+	if len(req.Files) == 0 {
+		respondError(c, http.StatusBadRequest, "请至少上传一个 Markdown 文件")
+		return
+	}
+	if len(req.Files) > 20 {
+		respondError(c, http.StatusBadRequest, "单次最多转换 20 个 Markdown 文件")
+		return
+	}
+	for index := range req.Files {
+		if req.Files[index].TargetConfigID == 0 {
+			req.Files[index].TargetConfigID = req.TargetConfigID
+		}
+		if req.Files[index].TargetConfigID == 0 {
+			respondError(c, http.StatusBadRequest, "请先选择目标图床配置")
+			return
+		}
+	}
+	payload, err := json.Marshal(req.Files)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "转换任务载荷生成失败")
+		return
+	}
+	task := model.ConversionTask{
+		UserID:   middleware.UserID(c),
+		TaskType: "convert",
+		Status:   "queued",
+		Total:    len(req.Files),
+		Message:  "转换任务已加入队列",
+		Payload:  string(payload),
+	}
+	if err := a.db.Create(&task).Error; err != nil {
+		respondError(c, http.StatusInternalServerError, "创建转换任务失败")
+		return
+	}
+	if err := a.enqueueConvertTask(c.Request.Context(), task.ID); err != nil {
+		ended := time.Now()
+		_ = a.db.Model(&task).Updates(map[string]any{"status": "failed", "message": "转换任务入队失败", "error": err.Error(), "ended_at": ended}).Error
+		respondError(c, http.StatusInternalServerError, "转换任务入队失败")
+		return
+	}
+	c.JSON(http.StatusAccepted, gin.H{"task": task, "results": []gin.H{}})
+}
+
+func (a *API) enqueueConvertTask(ctx context.Context, taskID uint) error {
+	if a.redis != nil && a.cfg.Redis.Enabled {
+		return a.redis.RPush(ctx, a.cfg.Redis.ConvertQueue, taskID).Err()
+	}
+	select {
+	case a.convertQueue <- taskID:
+		return nil
+	default:
+		return fmt.Errorf("本地转换队列已满，请稍后重试")
+	}
+}
+
+func (a *API) startConvertWorkers() {
+	if a.workerStarted {
+		return
+	}
+	a.workerStarted = true
+	ctx, cancel := context.WithCancel(context.Background())
+	a.workerCancel = cancel
+	concurrency := a.cfg.Redis.WorkerConcurrency
+	if concurrency <= 0 {
+		concurrency = 1
+	}
+	if a.redis == nil || !a.cfg.Redis.Enabled {
+		concurrency = 1
+	}
+	for index := 0; index < concurrency; index++ {
+		go a.runConvertWorker(ctx, index+1)
+	}
+	go a.requeueQueuedConvertTasks(ctx)
+}
+
+func (a *API) requeueQueuedConvertTasks(ctx context.Context) {
+	var tasks []model.ConversionTask
+	if err := a.db.Where("status = ?", "queued").Order("created_at asc").Find(&tasks).Error; err != nil {
+		log.Printf("failed to requeue conversion tasks: %v", err)
+		return
+	}
+	for _, task := range tasks {
+		if err := a.enqueueConvertTask(ctx, task.ID); err != nil {
+			log.Printf("failed to requeue conversion task %d: %v", task.ID, err)
+		}
+	}
+}
+
+func (a *API) runConvertWorker(ctx context.Context, workerID int) {
+	for {
+		taskID, err := a.nextConvertTask(ctx)
+		if err != nil {
+			if err == context.Canceled || err == redis.Nil {
+				return
+			}
+			log.Printf("conversion worker %d failed to read task: %v", workerID, err)
+			continue
+		}
+		a.runConvertTask(ctx, taskID)
+	}
+}
+
+func (a *API) nextConvertTask(ctx context.Context) (uint, error) {
+	if a.redis != nil && a.cfg.Redis.Enabled {
+		result, err := a.redis.BLPop(ctx, 0, a.cfg.Redis.ConvertQueue).Result()
+		if err != nil {
+			return 0, err
+		}
+		if len(result) < 2 {
+			return 0, fmt.Errorf("Redis 队列返回值不正确")
+		}
+		id, err := strconv.ParseUint(result[1], 10, 64)
+		if err != nil || id == 0 {
+			return 0, fmt.Errorf("Redis 队列任务 ID 不正确：%s", result[1])
+		}
+		return uint(id), nil
+	}
+	select {
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	case taskID := <-a.convertQueue:
+		return taskID, nil
+	}
+}
+
+func (a *API) runConvertTask(ctx context.Context, taskID uint) {
+	var task model.ConversionTask
+	if err := a.db.First(&task, taskID).Error; err != nil {
+		log.Printf("conversion task %d not found: %v", taskID, err)
+		return
+	}
+	if task.Status != "queued" {
+		return
+	}
+	started := time.Now()
+	claimed := a.db.Model(&model.ConversionTask{}).Where("id = ? AND status = ?", task.ID, "queued").Updates(map[string]any{
+		"status":     "running",
+		"message":    "转换任务执行中",
+		"started_at": started,
+	})
+	if claimed.Error != nil {
+		log.Printf("failed to claim conversion task %d: %v", task.ID, claimed.Error)
+		return
+	}
+	if claimed.RowsAffected == 0 {
+		return
+	}
+	task.Status = "running"
+	var files []markdownRequest
+	if err := json.Unmarshal([]byte(task.Payload), &files); err != nil {
+		a.failConvertTask(task.ID, "转换任务载荷解析失败", err)
+		return
+	}
+
+	success := 0
+	failed := 0
+	for index, file := range files {
+		_ = a.db.Model(&task).Updates(map[string]any{
+			"message": fmt.Sprintf("正在转换第 %d / %d 个文档：%s", index+1, len(files), documentFilename(file.Filename)),
+			"success": success,
+			"failed":  failed,
+		}).Error
+
+		result, _, err := a.convertOneForUser(ctx, task.UserID, file)
+		if err != nil {
+			failed++
+		} else {
+			success++
+			if record, ok := result["record"].(model.ConversionRecord); ok {
+				a.db.Model(&record).Update("task_id", task.ID)
+			}
+		}
+		_ = a.db.Model(&task).Updates(map[string]any{"success": success, "failed": failed}).Error
+	}
+
+	ended := time.Now()
+	status := "success"
+	if failed > 0 {
+		status = "failed"
+	}
+	_ = a.db.Model(&task).Updates(map[string]any{
+		"status":   status,
+		"success":  success,
+		"failed":   failed,
+		"message":  fmt.Sprintf("转换完成，成功 %d 个，失败 %d 个", success, failed),
+		"ended_at": ended,
+	}).Error
+}
+
+func (a *API) failConvertTask(taskID uint, message string, err error) {
+	ended := time.Now()
+	updates := map[string]any{"status": "failed", "message": message, "ended_at": ended}
+	if err != nil {
+		updates["error"] = err.Error()
+	}
+	_ = a.db.Model(&model.ConversionTask{}).Where("id = ?", taskID).Updates(updates).Error
+}
+
+// listConvertTasks godoc
+// @Summary 获取转换任务列表
+// @Tags convert
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} tasksResponse
+// @Failure 401 {object} errorResponse
+// @Failure 500 {object} errorResponse
+// @Router /api/convert/tasks [get]
+func (a *API) listConvertTasks(c *gin.Context) {
+	var tasks []model.ConversionTask
+	if err := a.db.Where("user_id = ?", middleware.UserID(c)).Order("created_at desc").Limit(50).Find(&tasks).Error; err != nil {
+		respondError(c, http.StatusInternalServerError, "读取转换任务失败")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"tasks": tasks})
+}
+
+// getConvertTask godoc
+// @Summary 获取转换任务详情
+// @Tags convert
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "任务 ID"
+// @Success 200 {object} taskDetailResponse
+// @Failure 400 {object} errorResponse
+// @Failure 401 {object} errorResponse
+// @Failure 404 {object} errorResponse
+// @Router /api/convert/tasks/{id} [get]
+func (a *API) getConvertTask(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		respondError(c, http.StatusBadRequest, "任务 ID 不正确")
+		return
+	}
+	var task model.ConversionTask
+	if err := a.db.Where("id = ? AND user_id = ?", id, middleware.UserID(c)).First(&task).Error; err != nil {
+		respondError(c, http.StatusNotFound, "转换任务不存在")
+		return
+	}
+	var records []model.ConversionRecord
+	_ = a.db.Where("task_id = ? AND user_id = ?", task.ID, middleware.UserID(c)).Order("id asc").Find(&records).Error
+	c.JSON(http.StatusOK, gin.H{"task": task, "records": records})
+}
+
+func (a *API) saveRecordDetails(recordID uint, details []model.ConversionRecordDetail) {
+	if len(details) == 0 {
+		return
+	}
+	for index := range details {
+		details[index].RecordID = recordID
+	}
+	_ = a.db.Create(&details).Error
 }
 
 func summarizeSourcePicBeds(images []utils.MarkdownImage) string {

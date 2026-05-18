@@ -20,7 +20,15 @@ func Open(cfg *config.Config) (*gorm.DB, error) {
 		return nil, err
 	}
 
-	if err := db.AutoMigrate(&model.User{}, &model.PasswordResetToken{}, &model.PicBedConfig{}, &model.ConversionRecord{}); err != nil {
+	if err := db.AutoMigrate(
+		&model.User{},
+		&model.EmailVerificationToken{},
+		&model.PasswordResetToken{},
+		&model.PicBedConfig{},
+		&model.ConversionTask{},
+		&model.ConversionRecord{},
+		&model.ConversionRecordDetail{},
+	); err != nil {
 		return nil, err
 	}
 	if err := seedDefaultAdmin(db); err != nil {

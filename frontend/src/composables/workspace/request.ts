@@ -10,7 +10,7 @@ export function createWorkspaceRequest(getToken: () => string) {
     const response = await fetch(apiURL(path), { ...options, headers });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      const error = new Error(data.error || '\u8bf7\u6c42\u5931\u8d25') as RequestError;
+      const error = new Error(data.error || '请求失败') as RequestError;
       error.status = response.status;
       throw error;
     }

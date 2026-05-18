@@ -1,9 +1,31 @@
 import { computed, reactive, ref, type Ref } from 'vue';
 import { createClientId } from './api';
 import { isGithubImageURL, normalizeProxyURL, withGithubProxy } from './imageProxy';
-import type { BatchFile, MarkdownImage, PicbedConfig } from './types';
+import type { BatchFile, ConversionRecord, ConversionTask, MarkdownImage, PicbedConfig } from './types';
 
 type WorkspaceRequest = <T>(path: string, options?: RequestInit) => Promise<T>;
+const CONVERT_WORKSPACE_STORAGE_KEY = 'picbed_convert_workspace';
+
+type ConvertTaskData = { task: ConversionTask; records: ConversionRecord[] };
+
+type PersistedConvertWorkspace = {
+  targetConfigId: number;
+  batchFiles: BatchFile[];
+  activeTaskId?: number;
+  savedAt: number;
+};
+
+function taskFinished(task: ConversionTask) {
+  return task.status === 'success' || task.status === 'failed';
+}
+
+function taskProgressValue(task: ConversionTask) {
+  return Math.min(task.success + task.failed, task.total);
+}
+
+function waitForNextPoll(ms: number) {
+  return new Promise(resolve => window.setTimeout(resolve, ms));
+}
 
 type ConvertWorkspaceDeps = {
   configs: Ref<PicbedConfig[]>;
@@ -40,6 +62,8 @@ export function useWorkspaceConvert({
   const githubProxyDialogOpen = ref(false);
   const githubProxyEnabled = ref(true);
   const githubProxyURL = ref('https://gh-proxy.com/');
+  let activeTaskId = 0;
+  let pollVersion = 0;
 
   const targetConfigs = computed(() => configs.value);
   const defaultTarget = computed(() => targetConfigs.value.find(item => item.is_default) || targetConfigs.value[0]);
@@ -69,16 +93,74 @@ export function useWorkspaceConvert({
     targetDropdownOpen.value = false;
   }
 
+  function readPersistedConvertWorkspace() {
+    try {
+      const raw = localStorage.getItem(CONVERT_WORKSPACE_STORAGE_KEY);
+      if (!raw) return null;
+      const state = JSON.parse(raw) as PersistedConvertWorkspace;
+      if (!Array.isArray(state.batchFiles)) return null;
+      return state;
+    } catch {
+      return null;
+    }
+  }
+  function persistConvertWorkspace(taskId = activeTaskId) {
+    try {
+      const state: PersistedConvertWorkspace = {
+        targetConfigId: convertForm.target_config_id,
+        batchFiles: batchFiles.value,
+        activeTaskId: taskId || undefined,
+        savedAt: Date.now(),
+      };
+      localStorage.setItem(CONVERT_WORKSPACE_STORAGE_KEY, JSON.stringify(state));
+    } catch {
+      // Storage may be unavailable in private mode; conversion itself should continue.
+    }
+  }
+  function clearPersistedConvertWorkspace() {
+    localStorage.removeItem(CONVERT_WORKSPACE_STORAGE_KEY);
+  }
+  function stopConvertTaskPolling() {
+    pollVersion += 1;
+    activeTaskId = 0;
+  }
   function resetConvertForm() {
+    if (activeTaskId) return;
     clearNotice();
+    stopConvertTaskPolling();
     convertForm.target_config_id = defaultTarget.value?.id || 0;
     targetDropdownOpen.value = false;
     pasteForm.filename = 'pasted.md';
     pasteForm.content = '';
+    persistConvertWorkspace();
     batchFiles.value = [];
     closeGithubProxyDialog();
+    clearPersistedConvertWorkspace();
   }
-
+  function syncTaskProgress(task: ConversionTask) {
+    updateTaskProgress({
+      current: taskProgressValue(task),
+      success: task.success,
+      failed: task.failed,
+      message: task.message || '转换任务执行中',
+    });
+  }
+  function applyTaskRecords(data: ConvertTaskData) {
+    for (const [index, file] of batchFiles.value.entries()) {
+      const record = data.records[index];
+      if (!record) {
+        file.status = 'failed';
+        file.convertedContent = '';
+        file.changed = 0;
+        file.error = '未找到转换结果';
+        continue;
+      }
+      file.status = record.status === 'success' ? 'success' : 'failed';
+      file.convertedContent = record.converted_content || '';
+      file.changed = record.image_count || 0;
+      file.error = record.error_message || '';
+    }
+  }
   async function addMarkdownFiles(fileList: FileList | File[]) {
     const files = Array.from(fileList).filter(file => file.name.toLowerCase().endsWith('.md'));
     if (!files.length) {
@@ -95,9 +177,11 @@ export function useWorkspaceConvert({
         changed: 0,
         status: 'ready' as const,
         error: '',
+        previewOpen: false,
       }))
     );
     batchFiles.value = [...batchFiles.value, ...loaded];
+    persistConvertWorkspace();
     showMessage(`已加入 ${loaded.length} 个 Markdown 文件`);
   }
   async function handleFiles(event: Event) {
@@ -123,12 +207,15 @@ export function useWorkspaceConvert({
       changed: 0,
       status: 'ready',
       error: '',
+      previewOpen: false,
     });
     pasteForm.content = '';
+    persistConvertWorkspace();
     showMessage('已加入粘贴文档');
   }
   function removeBatchFile(id: string) {
     batchFiles.value = batchFiles.value.filter(item => item.id !== id);
+    persistConvertWorkspace();
   }
   function closeGithubProxyDialog() {
     githubProxyDialogOpen.value = false;
@@ -154,6 +241,7 @@ export function useWorkspaceConvert({
         file.status = 'analyzed';
       }
       showMessage(`已完成识别，共 ${totalImages.value} 个图片地址`);
+      persistConvertWorkspace();
     } catch (err) {
       showError(err instanceof Error ? err.message : '批量识别失败');
     } finally {
@@ -170,11 +258,11 @@ export function useWorkspaceConvert({
       return;
     }
     if (!isBatchAnalyzed.value) {
-      showError('\u8bf7\u5148\u70b9\u51fb\u6279\u91cf\u8bc6\u522b');
+      showError('请先点击批量识别');
       return;
     }
     if (!totalImages.value) {
-      showError('\u672a\u8bc6\u522b\u5230\u56fe\u7247\uff0c\u65e0\u9700\u8f6c\u6362');
+      showError('未识别到图片，无需转换');
       return;
     }
     if (hasGithubImages.value) {
@@ -185,65 +273,95 @@ export function useWorkspaceConvert({
     }
     await runConvertBatch('');
   }
+  async function pollConvertTask(taskId: number, initialDelay = 600) {
+    const currentPollVersion = ++pollVersion;
+    activeTaskId = taskId;
+    persistConvertWorkspace(taskId);
+    if (initialDelay > 0) await waitForNextPoll(initialDelay);
+
+    while (currentPollVersion === pollVersion) {
+      const data = await request<ConvertTaskData>(`/api/convert/tasks/${taskId}`);
+      if (currentPollVersion !== pollVersion) return;
+      syncTaskProgress(data.task);
+
+      if (taskFinished(data.task)) {
+        activeTaskId = 0;
+        applyTaskRecords(data);
+        const finalStatus = data.task.failed > 0 ? 'failed' : 'success';
+        finishTaskProgress({
+          status: finalStatus,
+          message: data.task.message || `批量转换完成，成功 ${data.task.success} 个，失败 ${data.task.failed} 个`,
+          detail: '可以关闭此窗口并下载已转换的文档。',
+        });
+        showMessage(`批量转换完成，成功 ${convertedCount.value} 个文件`);
+        persistConvertWorkspace(0);
+        await loadRecords();
+        return;
+      }
+
+      await waitForNextPoll(1200);
+    }
+  }
+  function restoreConvertWorkspace() {
+    const state = readPersistedConvertWorkspace();
+    if (!state) return false;
+    convertForm.target_config_id = state.targetConfigId || defaultTarget.value?.id || 0;
+    batchFiles.value = state.batchFiles;
+    if (!state.activeTaskId) return batchFiles.value.length > 0;
+
+    loading.value = true;
+    startTaskProgress({
+      title: '批量转换处理中',
+      message: '正在恢复后台任务进度',
+      detail: `已恢复 ${batchFiles.value.length} 个文档，任务会继续同步进度。`,
+      total: Math.max(batchFiles.value.length, 1),
+    });
+    void pollConvertTask(state.activeTaskId, 0)
+      .catch(err => {
+        activeTaskId = state.activeTaskId || 0;
+        persistConvertWorkspace(activeTaskId);
+        finishTaskProgress({
+          status: 'failed',
+          message: '任务进度同步失败',
+          detail: err instanceof Error ? err.message : '请稍后刷新重试',
+        });
+        showError(err instanceof Error ? err.message : '任务进度同步失败');
+      })
+      .finally(() => {
+        loading.value = false;
+      });
+    return true;
+  }
   async function runConvertBatch(githubProxyURLForConvert: string) {
     loading.value = true;
     githubProxyDialogOpen.value = false;
     startTaskProgress({
       title: '批量转换处理中',
-      message: '正在准备批量转换',
+      message: '正在创建转换任务',
       detail: `共 ${batchFiles.value.length} 个文档，${totalImages.value} 个图片地址。`,
       total: batchFiles.value.length,
     });
     try {
-      let success = 0;
-      let failed = 0;
-      for (const [index, file] of batchFiles.value.entries()) {
-        updateTaskProgress({
-          current: index + 1,
-          success,
-          failed,
-          message: `正在转换第 ${index + 1} / ${batchFiles.value.length} 个文档`,
-          detail: `${file.filename} · ${file.images.length} 个图片地址。`,
-        });
-        try {
-          const result = await request<{ filename: string; content?: string; changed?: number; status: string; error?: string }>(
-            '/api/convert/process',
-            {
-              method: 'POST',
-              body: JSON.stringify({
-                target_config_id: convertForm.target_config_id,
-                filename: file.filename,
-                content: githubProxyURLForConvert ? withGithubProxy(file.content, githubProxyURLForConvert) : file.content,
-              }),
-            }
-          );
-          file.status = result.status === 'success' ? 'success' : 'failed';
-          file.convertedContent = result.content || '';
-          file.changed = result.changed || 0;
-          file.error = result.error || '';
-        } catch (err) {
-          file.status = 'failed';
-          file.convertedContent = '';
-          file.changed = 0;
-          file.error = err instanceof Error ? err.message : '转换失败';
-        }
-        if (file.status === 'success') success += 1;
-        else failed += 1;
-        updateTaskProgress({ current: index + 1, success, failed });
-      }
-      const finalStatus = failed > 0 ? 'failed' : 'success';
-      finishTaskProgress({
-        status: finalStatus,
-        message: `批量转换完成，成功 ${success} 个，失败 ${failed} 个`,
-        detail: '可以关闭此窗口并下载已转换的文档。',
+      const payloadFiles = batchFiles.value.map(file => ({
+        target_config_id: convertForm.target_config_id,
+        filename: file.filename,
+        content: githubProxyURLForConvert ? withGithubProxy(file.content, githubProxyURLForConvert) : file.content,
+      }));
+      const created = await request<{ task: ConversionTask }>('/api/convert/tasks', {
+        method: 'POST',
+        body: JSON.stringify({ target_config_id: convertForm.target_config_id, files: payloadFiles }),
       });
-      showMessage(`批量转换完成，成功 ${convertedCount.value} 个文件`);
-      await loadRecords();
+      const taskId = created.task.id;
+      activeTaskId = taskId;
+      persistConvertWorkspace(taskId);
+      updateTaskProgress({ message: created.task.message || '转换任务已加入队列', current: 0, success: 0, failed: 0 });
+      await pollConvertTask(taskId);
     } catch (err) {
+      persistConvertWorkspace(activeTaskId);
       finishTaskProgress({
         status: 'failed',
-        message: '批量转换失败',
-        detail: err instanceof Error ? err.message : '批量转换失败',
+        message: activeTaskId ? '任务进度同步失败' : '批量转换失败',
+        detail: err instanceof Error ? err.message : '批量转换失败，请稍后刷新重试',
       });
       showError(err instanceof Error ? err.message : '批量转换失败');
       await loadRecords();
@@ -265,6 +383,20 @@ export function useWorkspaceConvert({
     batchFiles.value.filter(file => file.convertedContent).forEach(downloadFile);
     showMessage('已开始下载转换后的文件');
   }
+  function togglePreview(file: BatchFile) {
+    file.previewOpen = !file.previewOpen;
+  }
+  function changedLines(file: BatchFile) {
+    if (!file.convertedContent) return [];
+    const before = file.content.split('\n');
+    const after = file.convertedContent.split('\n');
+    const rows = [] as Array<{ line: number; before: string; after: string }>;
+    const max = Math.max(before.length, after.length);
+    for (let index = 0; index < max; index += 1) {
+      if ((before[index] || '') !== (after[index] || '')) rows.push({ line: index + 1, before: before[index] || '', after: after[index] || '' });
+    }
+    return rows.slice(0, 20);
+  }
   return {
     convertForm,
     pasteForm,
@@ -284,6 +416,8 @@ export function useWorkspaceConvert({
     statusLabel,
     targetConfigLabel,
     selectTargetConfig,
+    restoreConvertWorkspace,
+    stopConvertTaskPolling,
     resetConvertForm,
     handleFiles,
     handleFileDrop,
@@ -295,5 +429,7 @@ export function useWorkspaceConvert({
     confirmGithubProxyConvert,
     downloadFile,
     downloadAll,
+    togglePreview,
+    changedLines,
   };
 }

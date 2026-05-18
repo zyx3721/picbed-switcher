@@ -22,6 +22,14 @@ definitions:
       username:
         type: string
     type: object
+  handler.authResponse:
+    properties:
+      token:
+        type: string
+      user:
+        additionalProperties: true
+        type: object
+    type: object
   handler.batchConvertResponse:
     properties:
       results:
@@ -93,10 +101,35 @@ definitions:
       status:
         type: string
     type: object
+  handler.createConvertTaskRequest:
+    properties:
+      files:
+        items:
+          $ref: '#/definitions/handler.markdownRequest'
+        type: array
+      target_config_id:
+        type: integer
+      task_type:
+        type: string
+    type: object
   handler.errorResponse:
     properties:
       error:
         example: 请求失败
+        type: string
+    type: object
+  handler.forgotPasswordRequest:
+    properties:
+      email:
+        type: string
+    type: object
+  handler.healthResponse:
+    properties:
+      message:
+        example: PicBed Switcher API 服务运行正常
+        type: string
+      status:
+        example: ok
         type: string
     type: object
   handler.markdownRequest:
@@ -147,6 +180,11 @@ definitions:
           $ref: '#/definitions/handler.picbedTypeDef'
         type: array
     type: object
+  handler.recordResponse:
+    properties:
+      record:
+        $ref: '#/definitions/model.ConversionRecord'
+    type: object
   handler.recordsResponse:
     properties:
       records:
@@ -154,10 +192,62 @@ definitions:
           $ref: '#/definitions/model.ConversionRecord'
         type: array
     type: object
+  handler.resetPasswordRequest:
+    properties:
+      confirm_password:
+        type: string
+      new_password:
+        type: string
+      token:
+        type: string
+    type: object
+  handler.taskCreateResponse:
+    properties:
+      results:
+        items:
+          additionalProperties: true
+          type: object
+        type: array
+      task:
+        $ref: '#/definitions/model.ConversionTask'
+    type: object
+  handler.taskDetailResponse:
+    properties:
+      records:
+        items:
+          $ref: '#/definitions/model.ConversionRecord'
+        type: array
+      task:
+        $ref: '#/definitions/model.ConversionTask'
+    type: object
+  handler.tasksResponse:
+    properties:
+      tasks:
+        items:
+          $ref: '#/definitions/model.ConversionTask'
+        type: array
+    type: object
+  handler.userResponse:
+    properties:
+      user:
+        additionalProperties: true
+        type: object
+    type: object
+  handler.verifyEmailRequest:
+    properties:
+      token:
+        type: string
+    type: object
   model.ConversionRecord:
     properties:
+      converted_content:
+        type: string
       created_at:
         type: string
+      details:
+        items:
+          $ref: '#/definitions/model.ConversionRecordDetail'
+        type: array
       error_message:
         type: string
       id:
@@ -172,6 +262,54 @@ definitions:
         description: success/failed/processing
         type: string
       target_picbed:
+        type: string
+      task_id:
+        type: integer
+      user_id:
+        type: integer
+    type: object
+  model.ConversionRecordDetail:
+    properties:
+      created_at:
+        type: string
+      error:
+        type: string
+      id:
+        type: integer
+      original_url:
+        type: string
+      record_id:
+        type: integer
+      status:
+        type: string
+      target_url:
+        type: string
+    type: object
+  model.ConversionTask:
+    properties:
+      created_at:
+        type: string
+      ended_at:
+        type: string
+      error:
+        type: string
+      failed:
+        type: integer
+      id:
+        type: integer
+      message:
+        type: string
+      started_at:
+        type: string
+      status:
+        type: string
+      success:
+        type: integer
+      task_type:
+        type: string
+      total:
+        type: integer
+      updated_at:
         type: string
       user_id:
         type: integer
@@ -210,11 +348,93 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/handler.userResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
       security:
       - BearerAuth: []
       summary: 修改当前用户邮箱
+      tags:
+      - auth
+  /api/auth/email/verification:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.messageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 重发邮箱验证邮件
+      tags:
+      - auth
+  /api/auth/email/verify:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 验证令牌
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.verifyEmailRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.messageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      summary: 验证邮箱
       tags:
       - auth
   /api/auth/login:
@@ -234,14 +454,19 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/handler.authResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
         "401":
           description: Unauthorized
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/handler.errorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
       summary: 用户名或邮箱登录
       tags:
       - auth
@@ -262,12 +487,96 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/handler.messageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
       security:
       - BearerAuth: []
       summary: 修改当前用户密码
+      tags:
+      - auth
+  /api/auth/password/forgot:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 邮箱信息
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.forgotPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.messageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      summary: 发送密码重置邮件
+      tags:
+      - auth
+  /api/auth/password/reset:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 重置密码信息
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.resetPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.messageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      summary: 使用重置令牌设置新密码
       tags:
       - auth
   /api/auth/profile:
@@ -278,8 +587,15 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/handler.userResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
       security:
       - BearerAuth: []
       summary: 获取当前用户信息
@@ -302,14 +618,19 @@ paths:
         "201":
           description: Created
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/handler.authResponse'
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/handler.errorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
       summary: 用户注册
       tags:
       - auth
@@ -333,6 +654,10 @@ paths:
             $ref: '#/definitions/handler.analyzeMarkdownResponse'
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "401":
+          description: Unauthorized
           schema:
             $ref: '#/definitions/handler.errorResponse'
       security:
@@ -362,6 +687,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/handler.errorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
       security:
       - BearerAuth: []
       summary: 批量执行 Markdown 文档转换
@@ -371,6 +700,16 @@ paths:
     post:
       consumes:
       - multipart/form-data
+      parameters:
+      - description: 本地批量上传清单 JSON，结构为 localBatchManifest
+        in: formData
+        name: manifest
+        required: true
+        type: string
+      - description: 本地图片文件，可按 manifest.images[].file_key 指定字段名上传；同一字段可提交多个文件
+        in: formData
+        name: images
+        type: file
       produces:
       - application/json
       responses:
@@ -380,6 +719,18 @@ paths:
             $ref: '#/definitions/handler.batchConvertResponse'
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "500":
+          description: Internal Server Error
           schema:
             $ref: '#/definitions/handler.errorResponse'
       security:
@@ -409,8 +760,16 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/handler.errorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
         "404":
           description: Not Found
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "500":
+          description: Internal Server Error
           schema:
             $ref: '#/definitions/handler.errorResponse'
       security:
@@ -431,9 +790,133 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/handler.errorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
       security:
       - BearerAuth: []
       summary: 获取转换历史
+      tags:
+      - convert
+  /api/convert/records/{id}:
+    get:
+      parameters:
+      - description: 记录 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.recordResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 获取转换历史详情
+      tags:
+      - convert
+  /api/convert/tasks:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.tasksResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 获取转换任务列表
+      tags:
+      - convert
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 转换任务请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createConvertTaskRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/handler.taskCreateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 创建转换任务
+      tags:
+      - convert
+  /api/convert/tasks/{id}:
+    get:
+      parameters:
+      - description: 任务 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.taskDetailResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 获取转换任务详情
       tags:
       - convert
   /api/picbed/configs:
@@ -447,6 +930,10 @@ paths:
             $ref: '#/definitions/handler.configsResponse'
         "401":
           description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "500":
+          description: Internal Server Error
           schema:
             $ref: '#/definitions/handler.errorResponse'
       security:
@@ -475,8 +962,16 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/handler.errorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
         "409":
           description: Conflict
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "500":
+          description: Internal Server Error
           schema:
             $ref: '#/definitions/handler.errorResponse'
       security:
@@ -499,8 +994,20 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/handler.messageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
         "404":
           description: Not Found
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "500":
+          description: Internal Server Error
           schema:
             $ref: '#/definitions/handler.errorResponse'
       security:
@@ -534,8 +1041,20 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/handler.errorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
         "404":
           description: Not Found
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "500":
+          description: Internal Server Error
           schema:
             $ref: '#/definitions/handler.errorResponse'
       security:
@@ -558,13 +1077,96 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/handler.configResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
         "404":
           description: Not Found
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "500":
+          description: Internal Server Error
           schema:
             $ref: '#/definitions/handler.errorResponse'
       security:
       - BearerAuth: []
       summary: 设置默认图床配置
+      tags:
+      - picbed
+  /api/picbed/configs/{id}/test:
+    post:
+      parameters:
+      - description: 配置 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.messageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 测试已保存的图床配置
+      tags:
+      - picbed
+  /api/picbed/configs/test:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 图床配置
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.picbedConfigRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.messageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 测试未保存的图床配置
       tags:
       - picbed
   /api/picbed/types:
@@ -593,7 +1195,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.messageResponse'
+            $ref: '#/definitions/handler.healthResponse'
       summary: 服务健康检查
       tags:
       - base

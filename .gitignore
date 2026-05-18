@@ -81,5 +81,6 @@ server/uploads/*
 !server/uploads/.gitkeep
 
 # 文档文件
+待开发功能.md
 开发需求.md
 优化.md

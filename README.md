@@ -36,12 +36,13 @@
 
 ## 1.3 核心功能
 
-- **用户认证**：支持用户注册、登录，基于JWT的会话管理
-- **图床配置管理**：支持添加、编辑、删除、查看多种图床配置，敏感信息加密存储
+- **用户认证**：支持用户注册、登录、邮箱验证、密码找回和基于 JWT 的会话管理
+- **图床配置管理**：支持添加、编辑、删除、测试、查看多种图床配置，敏感信息加密存储
 - **Markdown文档处理**：自动识别文档中的图床地址，支持批量转换
+- **转换任务队列**：支持持久化转换任务，Redis 开启后由后台 worker 消费队列，刷新页面后可继续查看任务进度
 - **图床地址转换**：支持多种主流图床之间的相互转换
 - **本地图片上传**：支持识别 Markdown 中的本地图片路径，上传到目标图床后自动替换为远程地址
-- **转换历史记录**：记录用户的文档转换历史，支持查看和追溯
+- **转换历史记录**：记录用户的文档转换历史，支持查看替换明细、错误摘要和转换结果
 - **文档下载**：转换完成后自动生成新文档，支持一键下载
 
 ## 1.4 支持的图床
@@ -60,6 +61,7 @@
 - **语言**：Go 1.25+
 - **框架**：Gin
 - **数据库**：PostgreSQL 16+
+- **队列**：Redis 5.0+（可选，未开启时回退为本进程内存队列）
 - **ORM**：GORM
 - **认证**：JWT
 - **加密**：AES-256-GCM
@@ -219,6 +221,7 @@ JWT_EXPIRE_HOURS=24
 # 密码找回配置
 APP_BASE_URL=http://localhost:5173
 PASSWORD_RESET_TOKEN_TTL_MINUTES=5
+EMAIL_VERIFICATION_TOKEN_TTL_MINUTES=5
 
 # SMTP 邮件配置（用于发送密码重置邮件）
 SMTP_HOST=smtp.example.com
@@ -228,9 +231,27 @@ SMTP_USERNAME=noreply@example.com
 SMTP_PASSWORD=your_smtp_password
 SMTP_FROM=noreply@example.com
 SMTP_FROM_NAME=PicBed Switcher
+
+# Redis 转换任务队列配置（开启后替代单进程内存队列）
+REDIS_ENABLED=false
+REDIS_ADDR=localhost:6379
+REDIS_PASSWORD=
+REDIS_DB=0
+REDIS_CONVERT_QUEUE=picbed:convert_tasks
+CONVERT_WORKER_CONCURRENCY=1
 ```
 
-`SMTP_SECURITY` 可选值为 `auto`、`ssl`、`starttls`、`none`：465 端口通常使用 `ssl`，587 端口通常使用 `starttls`。保留 `auto` 时，465 自动使用隐式 TLS，其他端口会在服务端支持时启用 STARTTLS。
+**部分配置说明**：
+
+- `SMTP_SECURITY` 可选值为 `auto`、`ssl`、`starttls`、`none`：
+  - `465` 端口通常使用 `ssl`
+  - `587` 端口通常使用 `starttls`
+  - 保留 `auto` 时，`465` 自动使用隐式 TLS，其他端口会在服务端支持时启用 `STARTTLS`
+
+- `REDIS_ENABLED=true` 时，转换任务会写入 Redis 队列并由后台 worker 消费
+- `REDIS_ENABLED=false` 时，会回退为本进程内存队列，适合不启 Redis 的本地开发
+- `REDIS_CONVERT_QUEUE` 指定 Redis List 队列名称，默认 `picbed:convert_tasks`；多个环境共用同一个 Redis 时建议使用不同队列名区分
+- `CONVERT_WORKER_CONCURRENCY` 控制同时处理的转换任务数量，默认 `1` 表示串行处理
 
 3. 运行后端服务：
 
@@ -329,6 +350,7 @@ JWT_EXPIRE_HOURS=24
 # 密码找回配置
 APP_BASE_URL=http://your-domain.com
 PASSWORD_RESET_TOKEN_TTL_MINUTES=5
+EMAIL_VERIFICATION_TOKEN_TTL_MINUTES=5
 
 # SMTP 邮件配置（用于发送密码重置邮件）
 SMTP_HOST=smtp.example.com
@@ -338,9 +360,27 @@ SMTP_USERNAME=noreply@example.com
 SMTP_PASSWORD=your_smtp_password
 SMTP_FROM=noreply@example.com
 SMTP_FROM_NAME=PicBed Switcher
+
+# Redis 转换任务队列配置（开启后替代单进程内存队列）
+REDIS_ENABLED=true
+REDIS_ADDR=redis:6379
+REDIS_PASSWORD=
+REDIS_DB=0
+REDIS_CONVERT_QUEUE=picbed:convert_tasks
+CONVERT_WORKER_CONCURRENCY=1
 ```
 
-`SMTP_SECURITY` 可选值为 `auto`、`ssl`、`starttls`、`none`：465 端口通常使用 `ssl`，587 端口通常使用 `starttls`。保留 `auto` 时，465 自动使用隐式 TLS，其他端口会在服务端支持时启用 STARTTLS。
+**部分配置说明**：
+
+- `SMTP_SECURITY` 可选值为 `auto`、`ssl`、`starttls`、`none`：
+  - `465` 端口通常使用 `ssl`
+  - `587` 端口通常使用 `starttls`
+  - 保留 `auto` 时，`465` 自动使用隐式 TLS，其他端口会在服务端支持时启用 `STARTTLS`
+
+- `REDIS_ENABLED=true` 时，转换任务会写入 Redis 队列并由后台 worker 消费
+- `REDIS_ENABLED=false` 时，会回退为本进程内存队列，适合不启 Redis 的本地开发
+- `REDIS_CONVERT_QUEUE` 指定 Redis List 队列名称，默认 `picbed:convert_tasks`；多个环境共用同一个 Redis 时建议使用不同队列名区分
+- `CONVERT_WORKER_CONCURRENCY` 控制同时处理的转换任务数量，默认 `1` 表示串行处理
 
 ## 3.3 构建镜像（可选）
 
@@ -569,6 +609,7 @@ JWT_EXPIRE_HOURS=24
 # 密码找回配置
 APP_BASE_URL=http://your-domain.com
 PASSWORD_RESET_TOKEN_TTL_MINUTES=5
+EMAIL_VERIFICATION_TOKEN_TTL_MINUTES=5
 
 # SMTP 邮件配置（用于发送密码重置邮件）
 SMTP_HOST=smtp.example.com
@@ -578,9 +619,27 @@ SMTP_USERNAME=noreply@example.com
 SMTP_PASSWORD=your_smtp_password
 SMTP_FROM=noreply@example.com
 SMTP_FROM_NAME=PicBed Switcher
+
+# Redis 转换任务队列配置（开启后替代单进程内存队列）
+REDIS_ENABLED=false
+REDIS_ADDR=localhost:6379
+REDIS_PASSWORD=
+REDIS_DB=0
+REDIS_CONVERT_QUEUE=picbed:convert_tasks
+CONVERT_WORKER_CONCURRENCY=1
 ```
 
-`SMTP_SECURITY` 可选值为 `auto`、`ssl`、`starttls`、`none`：465 端口通常使用 `ssl`，587 端口通常使用 `starttls`。保留 `auto` 时，465 自动使用隐式 TLS，其他端口会在服务端支持时启用 STARTTLS。
+**部分配置说明**：
+
+- `SMTP_SECURITY` 可选值为 `auto`、`ssl`、`starttls`、`none`：
+  - `465` 端口通常使用 `ssl`
+  - `587` 端口通常使用 `starttls`
+  - 保留 `auto` 时，`465` 自动使用隐式 TLS，其他端口会在服务端支持时启用 `STARTTLS`
+
+- `REDIS_ENABLED=true` 时，转换任务会写入 Redis 队列并由后台 worker 消费
+- `REDIS_ENABLED=false` 时，会回退为本进程内存队列，适合不启 Redis 的本地开发
+- `REDIS_CONVERT_QUEUE` 指定 Redis List 队列名称，默认 `picbed:convert_tasks`；多个环境共用同一个 Redis 时建议使用不同队列名区分
+- `CONVERT_WORKER_CONCURRENCY` 控制同时处理的转换任务数量，默认 `1` 表示串行处理
 
 3. 构建后端可执行文件：
 
@@ -830,10 +889,12 @@ server {
 ## 5.1 认证接口
 
 - `POST /api/auth/register` - 用户注册
-- `POST /api/auth/login` - 用户登录
+- `POST /api/auth/login` - 用户名或邮箱登录
+- `POST /api/auth/email/verify` - 验证邮箱
+- `POST /api/auth/email/verification` - 重发邮箱验证邮件
 - `POST /api/auth/password/forgot` - 发送密码重置邮件
 - `POST /api/auth/password/reset` - 使用重置令牌设置新密码
-- `GET /api/auth/profile` - 获取用户信息
+- `GET /api/auth/profile` - 获取当前用户信息
 - `PUT /api/auth/password` - 修改当前用户密码
 - `PUT /api/auth/email` - 修改当前用户邮箱
 
@@ -841,10 +902,12 @@ server {
 
 - `GET /api/picbed/types` - 获取支持的图床类型与配置字段
 - `POST /api/picbed/configs` - 添加图床配置
-- `GET /api/picbed/configs` - 获取所有配置
-- `PUT /api/picbed/configs/:id` - 更新配置
-- `DELETE /api/picbed/configs/:id` - 删除配置
-- `PUT /api/picbed/configs/:id/default` - 设置为默认配置
+- `POST /api/picbed/configs/test` - 测试未保存的图床配置
+- `GET /api/picbed/configs` - 获取所有图床配置
+- `PUT /api/picbed/configs/:id` - 更新图床配置
+- `DELETE /api/picbed/configs/:id` - 删除图床配置
+- `PUT /api/picbed/configs/:id/default` - 设置默认图床配置
+- `POST /api/picbed/configs/:id/test` - 测试已保存的图床配置
 
 ## 5.3 文档转换接口
 
@@ -852,13 +915,19 @@ server {
 - `POST /api/convert/process` - 执行单个 Markdown 文档转换
 - `POST /api/convert/batch` - 批量执行 Markdown 文档转换
 - `POST /api/convert/local-batch` - 批量上传 Markdown 中引用的本地图片并替换地址
+- `POST /api/convert/tasks` - 创建转换任务并加入后台队列
+- `GET /api/convert/tasks` - 获取转换任务列表
+- `GET /api/convert/tasks/:id` - 获取转换任务详情
 - `GET /api/convert/records` - 获取转换历史
+- `GET /api/convert/records/:id` - 获取转换历史详情
+
+`POST /api/convert/local-batch` 使用 `multipart/form-data` 提交：`manifest` 为本地批量上传清单 JSON，图片文件字段按 `manifest.documents[].images[].file_key` 指定。
 
 ## 5.4 基础接口
 
 - `GET /health` - 服务健康检查
 
-> 以上接口除注册、登录、密码找回/重置和健康检查外，均需要在请求头中携带 `Authorization: Bearer <token>`。
+> 以上接口除注册、登录、邮箱验证、密码找回/重置和健康检查外，均需要在请求头中携带 `Authorization: Bearer <token>`。
 
 # 六、使用说明
 
@@ -935,6 +1004,12 @@ uploads/{timestamp}-{origin}{ext}
 5. 等待转换完成
 6. 下载转换后的文档
 
+**说明**：
+
+- 批量转换会创建持久化转换任务。开启 Redis 后，任务 ID 会写入 `REDIS_CONVERT_QUEUE` 指定的 Redis 队列，由后台 worker 按 `CONVERT_WORKER_CONCURRENCY` 配置的并发数消费；未开启 Redis 时会回退为当前后端进程内的内存队列，适合本地开发或单实例轻量使用。服务启动时会自动重新入队数据库中仍处于 `queued` 状态的任务，前端刷新后也会根据任务 ID 继续轮询进度。
+- Redis 队列按“转换任务”维度排队，而不是按单个 Markdown 文档排队。一次批量转换即使包含多个文档，也只会写入一个任务 ID；多个用户或多次点击创建的多个转换任务，才会在 `REDIS_CONVERT_QUEUE` 中排队等待 worker 消费。
+- 转换结果预览/差异对比用于快速查看变化摘要，当前最多展示前 20 条变化；完整转换内容不受该限制，可通过下载转换后的文档查看。
+
 ## 6.4 本地上传
 
 当 Markdown 文档中的图片地址为本地路径时，可使用"本地上传"页面将图片上传到目标图床并自动替换文档内容。
@@ -950,7 +1025,11 @@ uploads/{timestamp}-{origin}{ext}
 
 ## 6.5 查看历史
 
-在"转换历史"页面可以查看所有转换记录，包括转换时间、源图床、目标图床、转换状态等信息。
+在"转换历史"页面可以查看所有转换记录，包括转换时间、源图床、目标图床、转换状态、图片数量等信息。
+
+点击任意历史记录行可打开详情弹窗，查看该次转换的文件名、图床类型、状态、图片数和错误信息。详情中的"替换明细"会列出每张图片的源地址、目标地址和转换状态；地址较长时表格会省略显示，鼠标悬停可查看完整地址。
+
+如果该记录包含转换后的内容，可在详情中点击"下载转换结果"下载完整 Markdown 文档。
 
 # 七、版本历史
 

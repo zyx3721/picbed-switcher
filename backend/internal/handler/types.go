@@ -53,6 +53,10 @@ type forgotPasswordRequest struct {
 	Email string `json:"email"`
 }
 
+type verifyEmailRequest struct {
+	Token string `json:"token"`
+}
+
 type resetPasswordRequest struct {
 	Token           string `json:"token"`
 	NewPassword     string `json:"new_password"`
@@ -79,6 +83,12 @@ type batchMarkdownRequest struct {
 	TargetConfigID uint              `json:"target_config_id"`
 }
 
+type createConvertTaskRequest struct {
+	TaskType       string            `json:"task_type"`
+	Files          []markdownRequest `json:"files"`
+	TargetConfigID uint              `json:"target_config_id"`
+}
+
 type localImageMapping struct {
 	Source  string `json:"source"`
 	FileKey string `json:"file_key"`
@@ -101,6 +111,11 @@ type errorResponse struct {
 
 type messageResponse struct {
 	Message string `json:"message" example:"操作成功"`
+}
+
+type healthResponse struct {
+	Status  string `json:"status" example:"ok"`
+	Message string `json:"message" example:"PicBed Switcher API 服务运行正常"`
 }
 
 type authResponse struct {
@@ -143,5 +158,22 @@ type batchConvertResponse struct {
 }
 
 type recordsResponse struct {
+	Records []model.ConversionRecord `json:"records"`
+}
+type recordResponse struct {
+	Record model.ConversionRecord `json:"record"`
+}
+
+type taskCreateResponse struct {
+	Task    model.ConversionTask     `json:"task"`
+	Results []map[string]interface{} `json:"results"`
+}
+
+type tasksResponse struct {
+	Tasks []model.ConversionTask `json:"tasks"`
+}
+
+type taskDetailResponse struct {
+	Task    model.ConversionTask     `json:"task"`
 	Records []model.ConversionRecord `json:"records"`
 }

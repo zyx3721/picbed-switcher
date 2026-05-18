@@ -17,8 +17,22 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(50) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     email VARCHAR(100) UNIQUE,
+    email_verified_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ============================
+-- 邮箱验证令牌表
+-- ============================
+CREATE TABLE IF NOT EXISTS email_verification_tokens (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash VARCHAR(64) UNIQUE NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    used_at TIMESTAMP,
+    request_ip VARCHAR(64),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- ============================
@@ -52,6 +66,23 @@ CREATE TABLE IF NOT EXISTS picbed_configs (
 -- ============================
 -- 转换记录表
 -- ============================
+CREATE TABLE IF NOT EXISTS conversion_tasks (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    task_type VARCHAR(20) NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    total INTEGER DEFAULT 0,
+    success INTEGER DEFAULT 0,
+    failed INTEGER DEFAULT 0,
+    message VARCHAR(255),
+    payload TEXT,
+    error TEXT,
+    started_at TIMESTAMP,
+    ended_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS conversion_records (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -61,6 +92,18 @@ CREATE TABLE IF NOT EXISTS conversion_records (
     status VARCHAR(20) NOT NULL,
     error_message TEXT,
     image_count INTEGER DEFAULT 0,
+    task_id INTEGER REFERENCES conversion_tasks(id) ON DELETE SET NULL,
+    converted_content TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS conversion_record_details (
+    id SERIAL PRIMARY KEY,
+    record_id INTEGER NOT NULL REFERENCES conversion_records(id) ON DELETE CASCADE,
+    original_url TEXT NOT NULL,
+    target_url TEXT,
+    status VARCHAR(20) NOT NULL,
+    error TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -73,6 +116,12 @@ CREATE INDEX IF NOT EXISTS idx_conversion_records_user_id ON conversion_records(
 CREATE INDEX IF NOT EXISTS idx_conversion_records_created_at ON conversion_records(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_expires_at ON password_reset_tokens(expires_at);
+CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_user_id ON email_verification_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_expires_at ON email_verification_tokens(expires_at);
+CREATE INDEX IF NOT EXISTS idx_conversion_tasks_user_id ON conversion_tasks(user_id);
+CREATE INDEX IF NOT EXISTS idx_conversion_tasks_status ON conversion_tasks(status);
+CREATE INDEX IF NOT EXISTS idx_conversion_records_task_id ON conversion_records(task_id);
+CREATE INDEX IF NOT EXISTS idx_conversion_record_details_record_id ON conversion_record_details(record_id);
 
 -- ============================
 -- 更新时间触发器函数
@@ -100,6 +149,12 @@ CREATE TRIGGER update_users_updated_at
 DROP TRIGGER IF EXISTS update_picbed_configs_updated_at ON picbed_configs;
 CREATE TRIGGER update_picbed_configs_updated_at
     BEFORE UPDATE ON picbed_configs
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_conversion_tasks_updated_at ON conversion_tasks;
+CREATE TRIGGER update_conversion_tasks_updated_at
+    BEFORE UPDATE ON conversion_tasks
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 

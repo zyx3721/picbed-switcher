@@ -15,7 +15,7 @@ export function usePicbedWorkspace() {
   const token = ref(localStorage.getItem('picbed_token') || '');
   const user = ref<User | null>(null);
   const activeTab = ref<WorkspaceTab>('convert');
-  const { message, error, errorNoticeKey, showMessage, showError, clearNotice, clearErrorTimer } = useWorkspaceNotices();
+  const { message, error, errorNoticeKey, toast, toastNoticeKey, showMessage, showError, showToast, clearNotice, clearErrorTimer, clearToastTimer } = useWorkspaceNotices();
   const loading = ref(false);
   const booting = ref(true);
   const { taskProgress, startTaskProgress, updateTaskProgress, finishTaskProgress, closeTaskProgress } = useTaskProgress();
@@ -70,6 +70,8 @@ export function usePicbedWorkspace() {
     mergeTypeDefs,
   } = useWorkspaceConfigForm({ activeTab, configs, showError, clearNotice });
   const records = ref<ConversionRecord[]>([]);
+  const recordDetail = ref<ConversionRecord | null>(null);
+  const recordDetailOpen = ref(false);
   const deleteTarget = ref<PicbedConfig | null>(null);
   const configTypeDropdownOpen = ref(false);
 
@@ -127,6 +129,10 @@ export function usePicbedWorkspace() {
     confirmGithubProxyConvert,
     downloadFile,
     downloadAll,
+    restoreConvertWorkspace,
+    stopConvertTaskPolling,
+    togglePreview,
+    changedLines,
   } = useWorkspaceConvert({
     configs,
     request,
@@ -193,7 +199,7 @@ export function usePicbedWorkspace() {
     mergeTypeDefs,
   });
   reloadRecords = loadRecords;
-  const { saveConfig, requestDeleteConfig, cancelDeleteConfig, confirmDeleteConfig, setDefault } =
+  const { saveConfig, requestDeleteConfig, cancelDeleteConfig, confirmDeleteConfig, setDefault, testConfig } =
     useWorkspaceConfigActions({
       request,
       configForm,
@@ -241,7 +247,10 @@ export function usePicbedWorkspace() {
       token.value = data.token;
       user.value = data.user;
       localStorage.setItem('picbed_token', data.token);
-      showMessage(authMode.value === 'login' ? '登录成功' : '注册成功');
+      const authMessage = authMode.value === 'login' ? '登录成功' : '注册成功';
+      const authNotice = data.user.email_verified === false ? authMessage + '，邮箱尚未验证，请先完成邮箱验证' : authMessage;
+      showMessage(authNotice);
+      if (authMode.value === 'login' && data.user.email_verified === false) showToast(authNotice);
       clearAuthForm();
       await loadWorkspaceData();
     } catch (err) {
@@ -252,6 +261,34 @@ export function usePicbedWorkspace() {
       } else if (text.includes('用户名')) authErrors.username = true;
       if (text.includes('邮箱')) authErrors.email = true;
       showError(text);
+    } finally {
+      loading.value = false;
+    }
+  }
+  async function verifyEmailToken(tokenValue: string) {
+    loading.value = true;
+    try {
+      const data = await request<{ message: string }>('/api/auth/email/verify', { method: 'POST', body: JSON.stringify({ token: tokenValue }) });
+      showMessage(data.message || '邮箱已验证');
+      window.history.replaceState({}, document.title, window.location.pathname);
+      await loadProfile();
+    } catch (err) {
+      showError(err instanceof Error ? err.message : '邮箱验证失败');
+    } finally {
+      loading.value = false;
+    }
+  }
+  async function resendEmailVerification() {
+    loading.value = true;
+    try {
+      const data = await request<{ message: string }>('/api/auth/email/verification', { method: 'POST' });
+      const text = data.message || '验证邮件已发送，请检查邮箱';
+      showMessage(text);
+      showToast(text);
+    } catch (err) {
+      const text = err instanceof Error ? err.message : '验证邮件发送失败';
+      showError(text);
+      showToast(text);
     } finally {
       loading.value = false;
     }
@@ -302,7 +339,7 @@ export function usePicbedWorkspace() {
       });
       user.value = data.user;
       closeProfileDialog();
-      showMessage('邮箱已修改');
+      showMessage('邮箱已修改，请查收验证邮件');
     } catch (err) {
       const requestError = err as RequestError;
       if (requestError.status === 400 || requestError.status === 409) emailErrors.email = true;
@@ -312,6 +349,7 @@ export function usePicbedWorkspace() {
     }
   }
   function logout() {
+    stopConvertTaskPolling();
     token.value = '';
     user.value = null;
     configs.value = [];
@@ -328,6 +366,7 @@ export function usePicbedWorkspace() {
       const data = await request<{ user: User }>('/api/auth/profile');
       user.value = data.user;
       await loadWorkspaceData();
+      restoreConvertWorkspace();
     } catch {
       logout();
     }
@@ -338,9 +377,27 @@ export function usePicbedWorkspace() {
     if (activeTab.value === 'localUpload' || tab === 'localUpload') resetLocalUploadForm();
     activeTab.value = tab;
   }
+  async function openRecordDetail(record: ConversionRecord) {
+    loading.value = true;
+    try {
+      const data = await request<{ record: ConversionRecord }>(`/api/convert/records/${record.id}`);
+      recordDetail.value = data.record;
+      recordDetailOpen.value = true;
+    } catch (err) {
+      showError(err instanceof Error ? err.message : '读取转换记录详情失败');
+    } finally {
+      loading.value = false;
+    }
+  }
+  function closeRecordDetail() {
+    recordDetailOpen.value = false;
+    recordDetail.value = null;
+  }
   onMounted(() => {
     document.addEventListener('pointerdown', handleGlobalPointerDown);
-    const resetToken = new URLSearchParams(window.location.search).get('reset_token');
+    const query = new URLSearchParams(window.location.search);
+    const resetToken = query.get('reset_token');
+    const verifyToken = query.get('verify_email_token');
     if (resetToken) {
       token.value = '';
       user.value = null;
@@ -351,11 +408,14 @@ export function usePicbedWorkspace() {
       booting.value = false;
       bootTimer = undefined;
     }, 1000);
-    if (!resetToken) void loadProfile();
+    if (verifyToken) void verifyEmailToken(verifyToken);
+    else if (!resetToken) void loadProfile();
   });
   onBeforeUnmount(() => {
     clearErrorTimer();
+    clearToastTimer();
     if (bootTimer) window.clearTimeout(bootTimer);
+    stopConvertTaskPolling();
     document.removeEventListener('pointerdown', handleGlobalPointerDown);
   });
 
@@ -366,6 +426,8 @@ export function usePicbedWorkspace() {
     message,
     error,
     errorNoticeKey,
+    toast,
+    toastNoticeKey,
     loading,
     booting,
     taskProgress,
@@ -388,6 +450,8 @@ export function usePicbedWorkspace() {
     pasteForm,
     configs,
     records,
+    recordDetail,
+    recordDetailOpen,
     batchFiles,
     deleteTarget,
     targetDropdownOpen,
@@ -447,6 +511,7 @@ export function usePicbedWorkspace() {
     setActiveTab,
     editConfig,
     saveConfig,
+    testConfig,
     requestDeleteConfig,
     cancelDeleteConfig,
     confirmDeleteConfig,
@@ -468,10 +533,15 @@ export function usePicbedWorkspace() {
     uploadLocalBatch,
     closeGithubProxyDialog,
     confirmGithubProxyConvert,
+    togglePreview,
+    changedLines,
     downloadFile,
     downloadAll,
     downloadLocalFile,
     downloadAllLocalFiles,
     loadRecords,
+    openRecordDetail,
+    closeRecordDetail,
+    resendEmailVerification,
   };
 }

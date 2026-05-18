@@ -18,6 +18,16 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       TZ: Asia/Shanghai
 
+  redis:
+    image: redis:7-alpine
+    container_name: picbed-redis
+    restart: unless-stopped
+    networks:
+      - picbed_network
+    command: redis-server --appendonly yes
+    volumes:
+      - ./RedisData:/data
+
   picbed:
     image: registry.cn-shenzhen.aliyuncs.com/zyx3721/picbed-switcher:latest
     container_name: picbed-switcher
@@ -35,6 +45,7 @@ services:
     # ----------------------------------------------------------------
     depends_on:
       - postgres
+      - redis
 
 networks:
   picbed_network:
