@@ -215,7 +215,22 @@ DB_SSLMODE=disable
 # JWT 配置
 JWT_SECRET=your_jwt_secret_key
 JWT_EXPIRE_HOURS=24
+
+# 密码找回配置
+APP_BASE_URL=http://localhost:5173
+PASSWORD_RESET_TOKEN_TTL_MINUTES=5
+
+# SMTP 邮件配置（用于发送密码重置邮件）
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_SECURITY=auto
+SMTP_USERNAME=noreply@example.com
+SMTP_PASSWORD=your_smtp_password
+SMTP_FROM=noreply@example.com
+SMTP_FROM_NAME=PicBed Switcher
 ```
+
+`SMTP_SECURITY` 可选值为 `auto`、`ssl`、`starttls`、`none`：465 端口通常使用 `ssl`，587 端口通常使用 `starttls`。保留 `auto` 时，465 自动使用隐式 TLS，其他端口会在服务端支持时启用 STARTTLS。
 
 3. 运行后端服务：
 
@@ -253,16 +268,18 @@ echo "VITE_API_BASE_URL=http://localhost:8080" > .env
 ```bash
 # 方式1：前台运行（终端关闭则服务停止）
 npm run dev
+# 如果要指定外部访问和监听端口，可执行例如：
+npm run dev -- --host --port 5173
 
 # 方式2：后台运行（日志输出到 admin-frontend.log）
 nohup npm run dev > picbed-frontend.log 2>&1 &
 ```
 
-前端服务默认运行在 `http://localhost:5174/` 。
+前端服务默认运行在 `http://localhost:5173/` 。
 
 ## 3.6 访问系统
 
-- **首页**：`http://localhost:5174`
+- **首页**：`http://localhost:5173`
   - **默认用户名**：`admin`
   - **默认邮箱**：`admin@example.com`
   - **默认密码**：`123456`
@@ -308,7 +325,22 @@ DB_SSLMODE=disable
 # JWT 配置
 JWT_SECRET=your_jwt_secret_key
 JWT_EXPIRE_HOURS=24
+
+# 密码找回配置
+APP_BASE_URL=http://your-domain.com
+PASSWORD_RESET_TOKEN_TTL_MINUTES=5
+
+# SMTP 邮件配置（用于发送密码重置邮件）
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_SECURITY=auto
+SMTP_USERNAME=noreply@example.com
+SMTP_PASSWORD=your_smtp_password
+SMTP_FROM=noreply@example.com
+SMTP_FROM_NAME=PicBed Switcher
 ```
+
+`SMTP_SECURITY` 可选值为 `auto`、`ssl`、`starttls`、`none`：465 端口通常使用 `ssl`，587 端口通常使用 `starttls`。保留 `auto` 时，465 自动使用隐式 TLS，其他端口会在服务端支持时启用 STARTTLS。
 
 ## 3.3 构建镜像（可选）
 
@@ -533,7 +565,22 @@ DB_SSLMODE=disable
 # JWT 配置
 JWT_SECRET=your_jwt_secret_key
 JWT_EXPIRE_HOURS=24
+
+# 密码找回配置
+APP_BASE_URL=http://your-domain.com
+PASSWORD_RESET_TOKEN_TTL_MINUTES=5
+
+# SMTP 邮件配置（用于发送密码重置邮件）
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_SECURITY=auto
+SMTP_USERNAME=noreply@example.com
+SMTP_PASSWORD=your_smtp_password
+SMTP_FROM=noreply@example.com
+SMTP_FROM_NAME=PicBed Switcher
 ```
+
+`SMTP_SECURITY` 可选值为 `auto`、`ssl`、`starttls`、`none`：465 端口通常使用 `ssl`，587 端口通常使用 `starttls`。保留 `auto` 时，465 自动使用隐式 TLS，其他端口会在服务端支持时启用 STARTTLS。
 
 3. 构建后端可执行文件：
 
@@ -784,6 +831,8 @@ server {
 
 - `POST /api/auth/register` - 用户注册
 - `POST /api/auth/login` - 用户登录
+- `POST /api/auth/password/forgot` - 发送密码重置邮件
+- `POST /api/auth/password/reset` - 使用重置令牌设置新密码
 - `GET /api/auth/profile` - 获取用户信息
 - `PUT /api/auth/password` - 修改当前用户密码
 - `PUT /api/auth/email` - 修改当前用户邮箱
@@ -809,7 +858,7 @@ server {
 
 - `GET /health` - 服务健康检查
 
-> 以上接口除注册、登录和健康检查外，均需要在请求头中携带 `Authorization: Bearer <token>`。
+> 以上接口除注册、登录、密码找回/重置和健康检查外，均需要在请求头中携带 `Authorization: Bearer <token>`。
 
 # 六、使用说明
 

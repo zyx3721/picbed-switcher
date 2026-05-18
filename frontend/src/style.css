@@ -408,12 +408,12 @@ svg {
   transform: none;
 }
 .auth-alert {
-  min-height: 58px;
+  min-height: 30px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 13px;
-  padding: 13px 16px;
+  padding: 10px 16px;
   color: #d92d20;
   background: #fff1f1;
   border: 1px solid #ffc7c7;
@@ -438,6 +438,18 @@ svg {
   color: #8b95a7;
   font-size: 14px;
   font-weight: 650;
+}
+.auth-mode-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  color: #8b95a7;
+  font-size: 14px;
+  font-weight: 650;
+}
+.auth-mode-row .auth-mode-inline {
+  justify-content: flex-start;
 }
 .link-button {
   min-height: auto;

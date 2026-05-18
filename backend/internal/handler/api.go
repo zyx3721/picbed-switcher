@@ -34,6 +34,8 @@ func (a *API) Register(router *gin.Engine) {
 	auth := api.Group("/auth")
 	auth.POST("/register", a.register)
 	auth.POST("/login", a.login)
+	auth.POST("/password/forgot", a.forgotPassword)
+	auth.POST("/password/reset", a.resetPassword)
 	protected := api.Group("")
 	protected.Use(middleware.Auth(a.cfg.JWT.Secret))
 	protected.GET("/auth/profile", a.profile)

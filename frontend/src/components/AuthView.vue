@@ -16,6 +16,20 @@ const {
   submitAuth,
   switchAuthMode,
 } = useWorkspaceContext();
+
+const authTitle = {
+  login: '欢迎回来',
+  register: '创建账号',
+  forgot: '找回密码',
+  reset: '重置密码',
+};
+
+const authSubtitle = {
+  login: '登录您的账户以继续',
+  register: '创建账户后开始管理图床配置',
+  forgot: '输入账户邮箱接收重置链接',
+  reset: '为您的账户设置新的登录密码',
+};
 </script>
 
 <template>
@@ -34,10 +48,10 @@ const {
     </div>
     <form class="panel auth-panel" novalidate @submit.prevent="submitAuth">
       <div class="auth-panel-heading">
-        <h1 id="auth-title">{{ authMode === 'login' ? '欢迎回来' : '创建账号' }}</h1>
-        <p>{{ authMode === 'login' ? '登录您的账户以继续' : '创建账户后开始管理图床配置' }}</p>
+        <h1 id="auth-title">{{ authTitle[authMode] }}</h1>
+        <p>{{ authSubtitle[authMode] }}</p>
       </div>
-      <label :class="{ invalid: authErrors.username }">
+      <label v-if="authMode === 'login' || authMode === 'register'" :class="{ invalid: authErrors.username }">
         <span class="field-label-text">{{ authMode === 'login' ? '用户名或邮箱' : '用户名' }}</span>
         <div class="auth-input-wrap">
           <input
@@ -52,7 +66,7 @@ const {
           </button>
         </div>
       </label>
-      <label v-if="authMode === 'register'" :class="{ invalid: authErrors.email }">
+      <label v-if="authMode === 'register' || authMode === 'forgot'" :class="{ invalid: authErrors.email }">
         <span class="field-label-text">邮箱</span>
         <div class="auth-input-wrap">
           <input v-model.trim="authForm.email" :class="{ invalid: authErrors.email }" autocomplete="email" inputmode="email" placeholder="请输入邮箱" type="text" @input="authErrors.email = false" />
@@ -61,7 +75,7 @@ const {
           </button>
         </div>
       </label>
-      <label :class="{ invalid: authErrors.password }">
+      <label v-if="authMode === 'login' || authMode === 'register'" :class="{ invalid: authErrors.password }">
         <span class="field-label-text">密码</span>
         <div class="auth-input-wrap">
           <input v-model="authForm.password" :class="{ invalid: authErrors.password }" autocomplete="current-password" placeholder="请输入密码" :type="authPasswordVisible ? 'text' : 'password'" @input="authErrors.password = false" />
@@ -71,18 +85,41 @@ const {
           </button>
         </div>
       </label>
+      <template v-if="authMode === 'reset'">
+        <label :class="{ invalid: authErrors.new_password }">
+          <span class="field-label-text">新密码</span>
+          <div class="auth-input-wrap">
+            <input v-model="authForm.new_password" :class="{ invalid: authErrors.new_password }" autocomplete="new-password" placeholder="请输入新密码" :type="authPasswordVisible ? 'text' : 'password'" @input="authErrors.new_password = false" />
+            <button class="field-action" type="button" :aria-label="authPasswordVisible ? '隐藏密码' : '显示密码'" @click="toggleAuthPasswordVisible">
+              <EyeOff v-if="authPasswordVisible" :size="18" />
+              <Eye v-else :size="18" />
+            </button>
+          </div>
+        </label>
+        <label :class="{ invalid: authErrors.confirm_password }">
+          <span class="field-label-text">确认密码</span>
+          <div class="auth-input-wrap">
+            <input v-model="authForm.confirm_password" :class="{ invalid: authErrors.confirm_password }" autocomplete="new-password" placeholder="请再次输入新密码" :type="authPasswordVisible ? 'text' : 'password'" @input="authErrors.confirm_password = false" />
+          </div>
+        </label>
+      </template>
       <div v-if="error" class="auth-alert" role="alert">
         <AlertCircle :size="19" />
         <span>{{ error }}</span>
       </div>
       <button class="primary auth-submit" :disabled="loading" type="submit">
-        <CheckCircle2 :size="18" />{{ loading ? '处理中...' : authMode === 'login' ? '登录' : '创建账号' }}
+        <CheckCircle2 :size="18" />{{ loading ? '处理中...' : authMode === 'login' ? '登录' : authMode === 'register' ? '创建账号' : authMode === 'forgot' ? '发送重置邮件' : '重置密码' }}
       </button>
-      <div class="auth-mode-inline">
-        <span>{{ authMode === 'login' ? '还没有账户？' : '已有账户？' }}</span>
-        <button class="link-button" type="button" @click="switchAuthMode(authMode === 'login' ? 'register' : 'login')">
-          {{ authMode === 'login' ? '注册' : '登录' }}
-        </button>
+      <div v-if="authMode === 'login'" class="auth-mode-row">
+        <div class="auth-mode-inline">
+          <span>还没有账户？</span>
+          <button class="link-button" type="button" @click="switchAuthMode('register')">注册</button>
+        </div>
+        <button class="link-button" type="button" @click="switchAuthMode('forgot')">忘记密码？</button>
+      </div>
+      <div v-else class="auth-mode-inline">
+        <span>{{ authMode === 'register' ? '已有账户？' : '想起来了？' }}</span>
+        <button class="link-button" type="button" @click="switchAuthMode('login')">登录</button>
       </div>
       <p v-if="message" class="notice success">{{ message }}</p>
     </form>

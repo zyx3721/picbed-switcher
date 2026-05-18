@@ -22,6 +22,19 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- ============================
+-- 密码重置令牌表
+-- ============================
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash VARCHAR(64) UNIQUE NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    used_at TIMESTAMP,
+    request_ip VARCHAR(64),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ============================
 -- 图床配置表
 -- ============================
 CREATE TABLE IF NOT EXISTS picbed_configs (
@@ -58,6 +71,8 @@ CREATE INDEX IF NOT EXISTS idx_picbed_configs_user_id ON picbed_configs(user_id)
 CREATE UNIQUE INDEX IF NOT EXISTS idx_picbed_configs_user_default ON picbed_configs(user_id) WHERE is_default = TRUE;
 CREATE INDEX IF NOT EXISTS idx_conversion_records_user_id ON conversion_records(user_id);
 CREATE INDEX IF NOT EXISTS idx_conversion_records_created_at ON conversion_records(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_expires_at ON password_reset_tokens(expires_at);
 
 -- ============================
 -- 更新时间触发器函数

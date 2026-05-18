@@ -10,6 +10,8 @@ type Config struct {
 	Server   ServerConfig
 	Database DatabaseConfig
 	JWT      JWTConfig
+	Mail     MailConfig
+	App      AppConfig
 }
 
 type ServerConfig struct {
@@ -32,10 +34,29 @@ type JWTConfig struct {
 	ExpireHours int
 }
 
+type MailConfig struct {
+	Host     string
+	Port     string
+	Username string
+	Password string
+	From     string
+	FromName string
+	Security string
+}
+
+type AppConfig struct {
+	BaseURL                      string
+	PasswordResetTokenTTLMinutes int
+}
+
 func Load() *Config {
 	expireHours, err := strconv.Atoi(getEnv("JWT_EXPIRE_HOURS", "24"))
 	if err != nil || expireHours <= 0 {
 		expireHours = 24
+	}
+	resetTTL, err := strconv.Atoi(getEnv("PASSWORD_RESET_TOKEN_TTL_MINUTES", "30"))
+	if err != nil || resetTTL <= 0 {
+		resetTTL = 30
 	}
 
 	return &Config{
@@ -56,6 +77,19 @@ func Load() *Config {
 			Secret:      getEnv("JWT_SECRET", "dev-change-me"),
 			ExpireHours: expireHours,
 		},
+		Mail: MailConfig{
+			Host:     getEnv("SMTP_HOST", ""),
+			Port:     getEnv("SMTP_PORT", "587"),
+			Username: getEnv("SMTP_USERNAME", ""),
+			Password: getEnv("SMTP_PASSWORD", ""),
+			From:     getEnv("SMTP_FROM", ""),
+			FromName: getEnv("SMTP_FROM_NAME", ""),
+			Security: mailSecurity(),
+		},
+		App: AppConfig{
+			BaseURL:                      getEnv("APP_BASE_URL", "http://localhost:5173"),
+			PasswordResetTokenTTLMinutes: resetTTL,
+		},
 	}
 }
 
@@ -69,6 +103,22 @@ func (d DatabaseConfig) DSN() string {
 		d.Port,
 		d.SSLMode,
 	)
+}
+
+func mailSecurity() string {
+	security := getEnv("SMTP_SECURITY", "")
+	if security != "" {
+		return security
+	}
+	ssl := getEnv("SMTP_SSL", "")
+	switch ssl {
+	case "1", "true", "TRUE", "True", "yes", "YES", "Yes", "on", "ON", "On":
+		return "ssl"
+	case "0", "false", "FALSE", "False", "no", "NO", "No", "off", "OFF", "Off":
+		return "none"
+	default:
+		return "auto"
+	}
 }
 
 func getEnv(key, defaultValue string) string {

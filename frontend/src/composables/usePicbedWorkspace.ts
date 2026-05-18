@@ -30,6 +30,7 @@ export function usePicbedWorkspace() {
     clearAuthField,
     toggleAuthPasswordVisible,
     switchAuthMode,
+    activatePasswordReset,
     validateAuthForm,
   } = useWorkspaceAuthForm({ showError, clearNotice });
   const {
@@ -209,6 +210,30 @@ export function usePicbedWorkspace() {
     if (!validateAuthForm()) return;
     loading.value = true;
     try {
+      if (authMode.value === 'forgot') {
+        const data = await request<{ message: string }>('/api/auth/password/forgot', {
+          method: 'POST',
+          body: JSON.stringify({ email: authForm.email }),
+        });
+        switchAuthMode('login');
+        Object.assign(authForm, { username: '', password: '', email: '' });
+        showMessage(data.message || '密码重置邮件已发送，请检查邮箱');
+        return;
+      }
+      if (authMode.value === 'reset') {
+        const data = await request<{ message: string }>('/api/auth/password/reset', {
+          method: 'POST',
+          body: JSON.stringify({
+            token: authForm.token,
+            new_password: authForm.new_password,
+            confirm_password: authForm.confirm_password,
+          }),
+        });
+        showMessage(data.message || '密码已重置，请重新登录');
+        clearAuthForm();
+        window.history.replaceState({}, document.title, window.location.pathname);
+        return;
+      }
       const data = await request<{ token: string; user: User }>(`/api/auth/${authMode.value}`, {
         method: 'POST',
         body: JSON.stringify(authForm),
@@ -315,11 +340,18 @@ export function usePicbedWorkspace() {
   }
   onMounted(() => {
     document.addEventListener('pointerdown', handleGlobalPointerDown);
+    const resetToken = new URLSearchParams(window.location.search).get('reset_token');
+    if (resetToken) {
+      token.value = '';
+      user.value = null;
+      localStorage.removeItem('picbed_token');
+      activatePasswordReset(resetToken);
+    }
     bootTimer = window.setTimeout(() => {
       booting.value = false;
       bootTimer = undefined;
     }, 1000);
-    void loadProfile();
+    if (!resetToken) void loadProfile();
   });
   onBeforeUnmount(() => {
     clearErrorTimer();
@@ -400,6 +432,7 @@ export function usePicbedWorkspace() {
     selectConfigType,
     handleConfigTypeChange,
     switchAuthMode,
+    activatePasswordReset,
     clearAuthField,
     toggleAuthPasswordVisible,
     submitAuth,
