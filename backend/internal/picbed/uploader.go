@@ -420,10 +420,7 @@ func uploadS3Compatible(ctx context.Context, cfg s3CompatibleConfig, image Image
 }
 
 func normalizeS3Endpoint(endpoint string, useSSL string) (string, bool) {
-	secure := true
-	if strings.EqualFold(strings.TrimSpace(useSSL), "false") || strings.TrimSpace(useSSL) == "0" {
-		secure = false
-	}
+	secure := strings.EqualFold(strings.TrimSpace(useSSL), "true") || strings.TrimSpace(useSSL) == "1"
 	if parsed, err := url.Parse(strings.TrimSpace(endpoint)); err == nil && parsed.Host != "" {
 		secure = parsed.Scheme != "http"
 		endpoint = parsed.Host

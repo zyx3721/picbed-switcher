@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ChevronDown, Eye, EyeOff, KeyRound, PlugZap, Plus, RefreshCw, Trash2 } from 'lucide-vue-next';
+import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { useWorkspaceContext } from '../../composables/useWorkspaceContext';
 
 const {
@@ -24,6 +25,24 @@ const {
   setDefault,
   requestDeleteConfig,
 } = useWorkspaceContext();
+
+const minioSslDropdownOpen = ref(false);
+const minioSslOptions = ['false', 'true'] as const;
+
+function selectMinioUseSSL(value: 'false' | 'true') {
+  configForm.values.use_ssl = value;
+  delete configErrors.fields.use_ssl;
+  minioSslDropdownOpen.value = false;
+}
+
+function closeMinioSslDropdown(event: PointerEvent) {
+  const target = event.target;
+  if (target instanceof Element && target.closest('.minio-ssl-select')) return;
+  minioSslDropdownOpen.value = false;
+}
+
+onMounted(() => document.addEventListener('pointerdown', closeMinioSslDropdown));
+onBeforeUnmount(() => document.removeEventListener('pointerdown', closeMinioSslDropdown));
 </script>
 
 <template>
@@ -85,7 +104,35 @@ const {
         :key="field.key"              :class="{ required: field.required, invalid: configErrors.fields[field.key] }"
         ><span class="field-label-text">{{ fieldLabel(field) }}</span>
         <div class="secret-input-wrap" :class="{ invalid: configErrors.fields[field.key] }">
+          <div
+            v-if="configForm.picbed_type === 'minio' && field.key === 'use_ssl'"
+            class="custom-select minio-ssl-select"
+            :class="{ open: minioSslDropdownOpen, invalid: configErrors.fields[field.key] }"
+          >
+            <button
+              class="select-trigger"
+              type="button"
+              :aria-expanded="minioSslDropdownOpen"
+              @click="minioSslDropdownOpen = !minioSslDropdownOpen"
+            >
+              <span>{{ configForm.values[field.key] || 'false' }}</span>
+              <ChevronDown :size="18" class="select-chevron" />
+            </button>
+            <div v-if="minioSslDropdownOpen" class="select-menu">
+              <button
+                v-for="option in minioSslOptions"
+                :key="option"
+                class="select-option"
+                type="button"
+                :class="{ selected: (configForm.values[field.key] || 'false') === option }"
+                @click="selectMinioUseSSL(option)"
+              >
+                <span>{{ option }}</span>
+              </button>
+            </div>
+          </div>
           <input
+            v-else
             v-model.trim="configForm.values[field.key]"
             :class="{ invalid: configErrors.fields[field.key] }"
             :type="field.secret && !secretFieldVisible(field.key) ? 'password' : 'text'"

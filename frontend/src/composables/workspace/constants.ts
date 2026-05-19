@@ -100,6 +100,7 @@ export const zhFieldLabels: Record<string, string> = {
 };
 
 export function defaultConfigValues(picbedType: string): Record<string, string> {
+  if (picbedType === 'minio') return { filename_format: defaultFilenameFormat, use_ssl: 'false' };
   return picbedType === 'easyimage' ? {} : { filename_format: defaultFilenameFormat };
 }
 
