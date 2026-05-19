@@ -339,6 +339,8 @@ vim .env
 `.env` 文件内容参考：
 
 ```bash
+GIN_MODE=release
+
 # 数据库配置
 DB_HOST=postgres
 DB_PORT=5432

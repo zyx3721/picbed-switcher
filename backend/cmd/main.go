@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
+	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -24,7 +26,9 @@ import (
 // @name Authorization
 func main() {
 	if err := godotenv.Load(); err != nil {
-		log.Printf("Warning: failed to load .env: %v", err)
+		if !errors.Is(err, os.ErrNotExist) {
+			log.Printf("Warning: failed to load .env: %v", err)
+		}
 	}
 
 	cfg := config.Load()
