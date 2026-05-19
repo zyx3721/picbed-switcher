@@ -1,8 +1,18 @@
 import { computed, ref, type Ref } from 'vue';
 import { createClientId } from './api';
-import type { LocalDocument, LocalImageFile, MarkdownImage, PicbedConfig } from './types';
+import type { ConversionRecord, ConversionTask, LocalDocument, LocalImageFile, MarkdownImage, PicbedConfig } from './types';
 
 type WorkspaceRequest = <T>(path: string, options?: RequestInit) => Promise<T>;
+const LOCAL_UPLOAD_WORKSPACE_STORAGE_KEY = 'picbed_local_upload_workspace';
+
+type LocalTaskData = { task: ConversionTask; records: ConversionRecord[] };
+
+type PersistedLocalUploadWorkspace = {
+  targetConfigId: number;
+  localDocuments: LocalDocument[];
+  activeTaskId?: number;
+  savedAt: number;
+};
 
 type LocalUploadWorkspaceDeps = {
   configs: Ref<PicbedConfig[]>;
@@ -18,11 +28,19 @@ type LocalUploadWorkspaceDeps = {
   finishTaskProgress: (input: { status: 'success' | 'failed'; message: string; detail?: string }) => void;
 };
 
-type LocalUploadResult = {
-  results: Array<{ filename: string; content?: string; changed?: number; status: string; error?: string }>;
-};
-
 const imageExtensions = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg', '.avif']);
+
+function taskFinished(task: ConversionTask) {
+  return task.status === 'success' || task.status === 'failed';
+}
+
+function taskProgressValue(task: ConversionTask) {
+  return Math.min(task.success + task.failed, task.total);
+}
+
+function waitForNextPoll(ms: number) {
+  return new Promise(resolve => window.setTimeout(resolve, ms));
+}
 
 export function useWorkspaceLocalUpload({
   configs,
@@ -43,6 +61,8 @@ export function useWorkspaceLocalUpload({
   const localImageDragActive = ref(false);
   const localDocuments = ref<LocalDocument[]>([]);
   const localImages = ref<LocalImageFile[]>([]);
+  let activeLocalTaskId = 0;
+  let localPollVersion = 0;
 
   const localTargetConfigs = computed(() => configs.value);
   const localDefaultTarget = computed(() => localTargetConfigs.value.find(item => item.is_default) || localTargetConfigs.value[0]);
@@ -66,14 +86,48 @@ export function useWorkspaceLocalUpload({
   function localStatusLabel(status: LocalDocument['status']) {
     return { ready: '待匹配', analyzed: '已匹配', success: '已上传', failed: '失败' }[status];
   }
+  function readPersistedLocalUploadWorkspace() {
+    try {
+      const raw = localStorage.getItem(LOCAL_UPLOAD_WORKSPACE_STORAGE_KEY);
+      if (!raw) return null;
+      const state = JSON.parse(raw) as PersistedLocalUploadWorkspace;
+      if (!Array.isArray(state.localDocuments)) return null;
+      return state;
+    } catch {
+      return null;
+    }
+  }
+  function persistLocalUploadWorkspace(taskId = activeLocalTaskId) {
+    try {
+      const state: PersistedLocalUploadWorkspace = {
+        targetConfigId: localTargetConfigId.value,
+        localDocuments: localDocuments.value,
+        activeTaskId: taskId || undefined,
+        savedAt: Date.now(),
+      };
+      localStorage.setItem(LOCAL_UPLOAD_WORKSPACE_STORAGE_KEY, JSON.stringify(state));
+    } catch {
+      // Browser storage may be unavailable; the backend task still continues.
+    }
+  }
+  function clearPersistedLocalUploadWorkspace() {
+    localStorage.removeItem(LOCAL_UPLOAD_WORKSPACE_STORAGE_KEY);
+  }
+  function stopLocalUploadTaskPolling() {
+    localPollVersion += 1;
+    activeLocalTaskId = 0;
+  }
   function resetLocalUploadForm() {
+    if (activeLocalTaskId) return;
     clearNotice();
+    stopLocalUploadTaskPolling();
     localTargetConfigId.value = localDefaultTarget.value?.id || 0;
     localTargetDropdownOpen.value = false;
     localDocumentDragActive.value = false;
     localImageDragActive.value = false;
     localDocuments.value = [];
     localImages.value = [];
+    clearPersistedLocalUploadWorkspace();
   }
   async function addLocalDocuments(fileList: FileList | File[]) {
     const files = Array.from(fileList).filter(file => file.name.toLowerCase().endsWith('.md'));
@@ -97,6 +151,7 @@ export function useWorkspaceLocalUpload({
     );
     localDocuments.value = [...localDocuments.value, ...loaded];
     analyzeLocalMatches();
+    persistLocalUploadWorkspace();
     showMessage(`已加入 ${loaded.length} 个 Markdown 文档`);
   }
   async function handleLocalDocumentFiles(event: Event) {
@@ -135,6 +190,7 @@ export function useWorkspaceLocalUpload({
   }
   function removeLocalDocument(id: string) {
     localDocuments.value = localDocuments.value.filter(item => item.id !== id);
+    persistLocalUploadWorkspace();
   }
   function removeLocalImage(key: string) {
     localImages.value = localImages.value.filter(item => item.key !== key);
@@ -146,7 +202,72 @@ export function useWorkspaceLocalUpload({
       return;
     }
     analyzeLocalMatches();
+    persistLocalUploadWorkspace();
     showMessage(`已匹配 ${localMatchedCount.value} 张本地图片`);
+  }
+  function syncLocalTaskProgress(task: ConversionTask) {
+    updateTaskProgress({
+      current: taskProgressValue(task),
+      success: task.success,
+      failed: task.failed,
+      message: task.message || '本地上传任务执行中',
+    });
+  }
+  function applyLocalTaskRecords(data: LocalTaskData) {
+    const recordsByFilename = new Map<string, ConversionRecord[]>();
+    for (const record of data.records) {
+      const filename = record.original_filename || '';
+      recordsByFilename.set(filename, [...(recordsByFilename.get(filename) || []), record]);
+    }
+    const canFallbackToPosition = data.records.length === localDocuments.value.length;
+
+    for (const [index, document] of localDocuments.value.entries()) {
+      const filenameRecords = recordsByFilename.get(document.filename) || [];
+      const record = filenameRecords.shift() || (canFallbackToPosition ? data.records[index] : undefined);
+      if (filenameRecords.length) recordsByFilename.set(document.filename, filenameRecords);
+      else recordsByFilename.delete(document.filename);
+
+      if (!record) {
+        document.status = 'failed';
+        document.convertedContent = '';
+        document.changed = 0;
+        document.error = '未找到上传替换结果';
+        continue;
+      }
+      document.status = record.status === 'success' ? 'success' : 'failed';
+      document.convertedContent = record.converted_content || '';
+      document.changed = record.image_count || 0;
+      document.error = record.error_message || '';
+    }
+  }
+  async function pollLocalUploadTask(taskId: number, initialDelay = 600) {
+    const currentPollVersion = ++localPollVersion;
+    activeLocalTaskId = taskId;
+    persistLocalUploadWorkspace(taskId);
+    if (initialDelay > 0) await waitForNextPoll(initialDelay);
+
+    while (currentPollVersion === localPollVersion) {
+      const data = await request<LocalTaskData>(`/api/convert/tasks/${taskId}`);
+      if (currentPollVersion !== localPollVersion) return;
+      syncLocalTaskProgress(data.task);
+
+      if (taskFinished(data.task)) {
+        activeLocalTaskId = 0;
+        applyLocalTaskRecords(data);
+        const finalStatus = data.task.failed > 0 ? 'failed' : 'success';
+        finishTaskProgress({
+          status: finalStatus,
+          message: data.task.message || `本地图片上传完成，成功 ${data.task.success} 个，失败 ${data.task.failed} 个`,
+          detail: '可以关闭此窗口并下载替换后的文档。',
+        });
+        showMessage(`本地图片上传完成，成功 ${localConvertedCount.value} 个文档`);
+        persistLocalUploadWorkspace(0);
+        await loadRecords();
+        return;
+      }
+
+      await waitForNextPoll(1200);
+    }
   }
   async function uploadLocalBatch() {
     if (!localTargetConfigId.value) {
@@ -169,55 +290,31 @@ export function useWorkspaceLocalUpload({
     loading.value = true;
     startTaskProgress({
       title: '本地上传替换中',
-      message: '正在准备上传并替换',
+      message: '正在创建本地上传任务',
       detail: `共 ${localDocuments.value.length} 个文档，${localMatchedCount.value} 张本地图片。`,
       total: localDocuments.value.length,
     });
     try {
-      let success = 0;
-      let failed = 0;
-      for (const [index, document] of localDocuments.value.entries()) {
-        updateTaskProgress({
-          current: index + 1,
-          success,
-          failed,
-          message: `正在上传替换第 ${index + 1} / ${localDocuments.value.length} 个文档`,
-          detail: `${document.filename} · 已匹配 ${document.matched} 张本地图片。`,
-        });
-        const manifest = buildSingleLocalManifest(document);
-        const formData = new FormData();
-        formData.append('manifest', JSON.stringify({ target_config_id: localTargetConfigId.value, documents: [manifest.document] }));
-        for (const image of manifest.images) formData.append(image.key, image.file, image.name);
-        try {
-          const data = await request<LocalUploadResult>('/api/convert/local-batch', { method: 'POST', body: formData });
-          const result = data.results[0];
-          document.status = result?.status === 'success' ? 'success' : 'failed';
-          document.convertedContent = result?.content || '';
-          document.changed = result?.changed || 0;
-          document.error = result?.error || '';
-        } catch (err) {
-          document.status = 'failed';
-          document.convertedContent = '';
-          document.changed = 0;
-          document.error = err instanceof Error ? err.message : '本地图片上传失败';
-        }
-        if (document.status === 'success') success += 1;
-        else failed += 1;
-        updateTaskProgress({ current: index + 1, success, failed });
-      }
-      const finalStatus = failed > 0 ? 'failed' : 'success';
-      finishTaskProgress({
-        status: finalStatus,
-        message: `本地图片上传完成，成功 ${success} 个，失败 ${failed} 个`,
-        detail: '可以关闭此窗口并下载替换后的文档。',
+      const manifest = buildLocalTaskManifest();
+      const formData = new FormData();
+      formData.append('manifest', JSON.stringify({ target_config_id: localTargetConfigId.value, documents: manifest.documents }));
+      for (const image of manifest.images) formData.append(image.key, image.file, image.name);
+      const created = await request<{ task: ConversionTask }>('/api/convert/local-tasks', {
+        method: 'POST',
+        body: formData,
       });
-      showMessage(`本地图片上传完成，成功 ${localConvertedCount.value} 个文档`);
-      await loadRecords();
+      const taskId = created.task.id;
+      activeLocalTaskId = taskId;
+      persistLocalUploadWorkspace(taskId);
+      localImages.value = [];
+      updateTaskProgress({ message: created.task.message || '本地上传任务已加入队列', current: 0, success: 0, failed: 0 });
+      await pollLocalUploadTask(taskId);
     } catch (err) {
+      persistLocalUploadWorkspace(activeLocalTaskId);
       finishTaskProgress({
         status: 'failed',
-        message: '本地图片上传失败',
-        detail: err instanceof Error ? err.message : '本地图片上传失败',
+        message: activeLocalTaskId ? '本地上传任务进度同步失败' : '本地图片上传失败',
+        detail: err instanceof Error ? err.message : '本地图片上传失败，请稍后刷新重试',
       });
       showError(err instanceof Error ? err.message : '本地图片上传失败');
       await loadRecords();
@@ -238,6 +335,37 @@ export function useWorkspaceLocalUpload({
   function downloadAllLocalFiles() {
     localDocuments.value.filter(document => document.convertedContent).forEach(downloadLocalFile);
     showMessage('已开始下载本地上传后的文档');
+  }
+  function restoreLocalUploadWorkspace() {
+    const state = readPersistedLocalUploadWorkspace();
+    if (!state) return false;
+    localTargetConfigId.value = state.targetConfigId || localDefaultTarget.value?.id || 0;
+    localDocuments.value = state.localDocuments;
+    localImages.value = [];
+    if (!state.activeTaskId) return localDocuments.value.length > 0;
+
+    loading.value = true;
+    startTaskProgress({
+      title: '本地上传替换中',
+      message: '正在恢复后台任务进度',
+      detail: `已恢复 ${localDocuments.value.length} 个文档，任务会继续同步进度。`,
+      total: Math.max(localDocuments.value.length, 1),
+    });
+    void pollLocalUploadTask(state.activeTaskId, 0)
+      .catch(err => {
+        activeLocalTaskId = state.activeTaskId || 0;
+        persistLocalUploadWorkspace(activeLocalTaskId);
+        finishTaskProgress({
+          status: 'failed',
+          message: '本地上传任务进度同步失败',
+          detail: err instanceof Error ? err.message : '请稍后刷新重试',
+        });
+        showError(err instanceof Error ? err.message : '本地上传任务进度同步失败');
+      })
+      .finally(() => {
+        loading.value = false;
+      });
+    return true;
   }
   function analyzeLocalMatches() {
     for (const document of localDocuments.value) {
@@ -268,6 +396,16 @@ export function useWorkspaceLocalUpload({
       }),
     };
     return { document: item, images: Array.from(usedImages.values()) };
+  }
+  function buildLocalTaskManifest() {
+    const documents = [] as Array<{ filename: string; content: string; images: Array<{ source: string; file_key: string }> }>;
+    const usedImages = new Map<string, LocalImageFile>();
+    for (const document of localDocuments.value) {
+      const manifest = buildSingleLocalManifest(document);
+      documents.push(manifest.document);
+      for (const image of manifest.images) usedImages.set(image.key, image);
+    }
+    return { documents, images: Array.from(usedImages.values()) };
   }
   function findLocalImage(source: string) {
     const normalizedSource = normalizeLocalPath(source);
@@ -304,6 +442,8 @@ export function useWorkspaceLocalUpload({
     removeLocalImage,
     analyzeLocalBatch,
     uploadLocalBatch,
+    restoreLocalUploadWorkspace,
+    stopLocalUploadTaskPolling,
     downloadLocalFile,
     downloadAllLocalFiles,
   };

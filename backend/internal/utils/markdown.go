@@ -65,6 +65,14 @@ func detectPicBedByHostAndPath(hostValue string, pathValue string) string {
 		return "aliyun"
 	case strings.Contains(host, "qiniucdn.com") || strings.Contains(host, "qiniucs.com") || strings.Contains(host, "clouddn.com") || strings.Contains(host, "qiniu"):
 		return "qiniu"
+	case strings.Contains(host, "bcebos.com") || strings.Contains(host, "baidubce.com"):
+		return "baidu_bos"
+	case strings.Contains(host, "myhuaweicloud.com") || strings.Contains(host, "huaweicloud"):
+		return "huawei_obs"
+	case strings.Contains(host, "upaiyun.com") || strings.Contains(host, "upyun"):
+		return "upyun"
+	case strings.Contains(host, "minio"):
+		return "minio"
 	case strings.Contains(host, "easyimage") || strings.Contains(path, "easyimage") || strings.Contains(path, "/i/"):
 		return "easyimage"
 	default:

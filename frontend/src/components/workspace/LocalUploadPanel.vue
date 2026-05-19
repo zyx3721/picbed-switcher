@@ -132,7 +132,7 @@ const {
       </div>
     </div>
     <div class="conversion-controls local-controls">
-      <label class="select-field">
+      <label class="select-field local-target-field">
         <span>目标配置</span>
         <div class="custom-select" :class="{ open: localTargetDropdownOpen }">
           <button

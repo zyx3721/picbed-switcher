@@ -22,7 +22,7 @@
 
 ## 1.1 项目简介
 
-图床转站助手是一款专为解决Markdown文档中图床地址批量转换需求而开发的工具平台。支持GitHub、Gitee、腾讯云COS、阿里云OSS、七牛云、EasyImage等多种图床的适配与切换，提供简洁易用的操作界面，保障用户数据安全。
+图床转站助手是一款专为解决Markdown文档中图床地址批量转换需求而开发的工具平台。支持GitHub、Gitee、腾讯云COS、阿里云OSS、七牛云、百度云 BOS、华为云 OBS、又拍云、MinIO、EasyImage等多种图床的适配与切换，提供简洁易用的操作界面，保障用户数据安全。
 
 ## 1.2 项目预览
 
@@ -52,6 +52,10 @@
 - **腾讯云COS**：腾讯云对象存储服务
 - **阿里云OSS**：阿里云对象存储服务
 - **七牛云**：七牛云对象存储服务
+- **百度云 BOS**：百度智能云对象存储服务
+- **华为云 OBS**：华为云对象存储服务
+- **又拍云**：又拍云云存储服务
+- **MinIO**：自建 S3 兼容对象存储服务
 - **EasyImage**：自建 EasyImage 图床服务
 - **其他图床**：兼容通用上传接口的图床服务
 
@@ -915,13 +919,14 @@ server {
 - `POST /api/convert/process` - 执行单个 Markdown 文档转换
 - `POST /api/convert/batch` - 批量执行 Markdown 文档转换
 - `POST /api/convert/local-batch` - 批量上传 Markdown 中引用的本地图片并替换地址
+- `POST /api/convert/local-tasks` - 创建本地图片上传替换后台任务并加入队列
 - `POST /api/convert/tasks` - 创建转换任务并加入后台队列
 - `GET /api/convert/tasks` - 获取转换任务列表
 - `GET /api/convert/tasks/:id` - 获取转换任务详情
 - `GET /api/convert/records` - 获取转换历史
 - `GET /api/convert/records/:id` - 获取转换历史详情
 
-`POST /api/convert/local-batch` 使用 `multipart/form-data` 提交：`manifest` 为本地批量上传清单 JSON，图片文件字段按 `manifest.documents[].images[].file_key` 指定。
+`POST /api/convert/local-batch` 和 `POST /api/convert/local-tasks` 使用 `multipart/form-data` 提交：`manifest` 为本地批量上传清单 JSON，图片文件字段按 `manifest.documents[].images[].file_key` 指定。前者为同步处理接口，后者会创建后台任务并复用转换任务队列。
 
 ## 5.4 基础接口
 
@@ -944,6 +949,10 @@ server {
 - **腾讯云COS**：需要提供SecretId、SecretKey、存储桶信息
 - **阿里云OSS**：需要提供AccessKeyId、AccessKeySecret、存储桶信息
 - **七牛云**：需要提供AccessKey、SecretKey、存储桶信息
+- **百度云 BOS**：需要提供AccessKeyId、SecretAccessKey、存储桶和地域
+- **华为云 OBS**：需要提供AccessKeyId、SecretAccessKey、存储桶和地域
+- **又拍云**：需要提供服务名、操作员、密码和加速域名
+- **MinIO**：需要提供Endpoint、AccessKey、SecretKey、存储桶，可按需填写地域、SSL 开关和公开访问域名
 - **EasyImage**：需要提供 API 地址和 Token
 - **其他图床**：需要提供兼容上传接口的 API 地址、Token 等信息
 
@@ -1006,8 +1015,8 @@ uploads/{timestamp}-{origin}{ext}
 
 **说明**：
 
-- 批量转换会创建持久化转换任务。开启 Redis 后，任务 ID 会写入 `REDIS_CONVERT_QUEUE` 指定的 Redis 队列，由后台 worker 按 `CONVERT_WORKER_CONCURRENCY` 配置的并发数消费；未开启 Redis 时会回退为当前后端进程内的内存队列，适合本地开发或单实例轻量使用。服务启动时会自动重新入队数据库中仍处于 `queued` 状态的任务，前端刷新后也会根据任务 ID 继续轮询进度。
-- Redis 队列按“转换任务”维度排队，而不是按单个 Markdown 文档排队。一次批量转换即使包含多个文档，也只会写入一个任务 ID；多个用户或多次点击创建的多个转换任务，才会在 `REDIS_CONVERT_QUEUE` 中排队等待 worker 消费。
+- 批量转换和本地上传替换都会创建持久化转换任务。开启 Redis 后，任务 ID 会写入 `REDIS_CONVERT_QUEUE` 指定的 Redis 队列，由后台 worker 按 `CONVERT_WORKER_CONCURRENCY` 配置的并发数消费；未开启 Redis 时会回退为当前后端进程内的内存队列，适合本地开发或单实例轻量使用。服务启动时会自动重新入队数据库中仍处于 `queued` 状态的任务，前端刷新后也会根据任务 ID 继续轮询进度。
+- Redis 队列按“转换任务”维度排队，而不是按单个 Markdown 文档排队。一次批量转换或本地上传即使包含多个文档，也只会写入一个任务 ID；多个用户或多次点击创建的多个转换任务，才会在 `REDIS_CONVERT_QUEUE` 中排队等待 worker 消费。
 - 转换结果预览/差异对比用于快速查看变化摘要，当前最多展示前 20 条变化；完整转换内容不受该限制，可通过下载转换后的文档查看。
 
 ## 6.4 本地上传
@@ -1022,6 +1031,8 @@ uploads/{timestamp}-{origin}{ext}
 6. 下载替换完成后的 Markdown 文档
 
 本地上传仅处理本地图片引用，文档中的 `http://`、`https://` 远程图片地址会保持不变。如需转换远程图片地址，请使用"文档转换"页面。
+
+本地上传会创建后台任务并复用 Redis/内存转换队列。任务创建时会先将本地图片文件上传到后端临时任务目录，因此浏览器刷新后可根据任务 ID 自动恢复进度并同步转换结果；任务处理完成后会自动清理对应临时文件。
 
 ## 6.5 查看历史
 
@@ -1054,7 +1065,7 @@ uploads/{timestamp}-{origin}{ext}
 
 - 首个正式版本，完成图床转站助手核心功能闭环。
 - 支持用户认证、图床配置管理、Markdown 图片地址分析、单文档转换、批量转换和转换历史记录。
-- 支持 GitHub、Gitee、腾讯云 COS、阿里云 OSS、七牛云、EasyImage 和兼容通用接口的图床服务。
+- 支持 GitHub、Gitee、腾讯云 COS、阿里云 OSS、七牛云、百度云 BOS、华为云 OBS、又拍云、MinIO、EasyImage 和兼容通用接口的图床服务。
 - 提供 Vue 3 前端工作台、Go/Gin 后端 API、PostgreSQL 数据库初始化、Docker Compose 部署配置和 Swagger 接口文档。
 - 详细更新日志见 [verchanglog/v1.0.0.md](verchanglog/v1.0.0.md)。
 

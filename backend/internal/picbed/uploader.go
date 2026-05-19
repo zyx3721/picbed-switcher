@@ -113,6 +113,14 @@ func Upload(ctx context.Context, picbedType string, cfg map[string]string, image
 		return uploadAliyunOSS(ctx, cfg, image)
 	case "qiniu":
 		return uploadQiniuKodo(ctx, cfg, image)
+	case "baidu_bos":
+		return uploadBaiduBOS(ctx, cfg, image)
+	case "huawei_obs":
+		return uploadHuaweiOBS(ctx, cfg, image)
+	case "upyun":
+		return uploadUpYun(ctx, cfg, image)
+	case "minio":
+		return uploadMinIO(ctx, cfg, image)
 	case "easyimage", "other":
 		return uploadEasyImage(ctx, cfg, image)
 	default:
@@ -224,6 +232,7 @@ func uploadTencentCOS(ctx context.Context, cfg map[string]string, image ImageFil
 		Bucket:       bucket,
 		Region:       region,
 		Endpoint:     endpoint,
+		Secure:       true,
 		StoragePath:  cfg["storage_path"],
 		CustomDomain: cfg["custom_domain"],
 	}, image)
@@ -247,6 +256,7 @@ func uploadAliyunOSS(ctx context.Context, cfg map[string]string, image ImageFile
 		Bucket:       bucket,
 		Region:       region,
 		Endpoint:     endpoint,
+		Secure:       true,
 		StoragePath:  cfg["storage_path"],
 		CustomDomain: cfg["custom_domain"],
 	}, image)
@@ -267,6 +277,96 @@ func uploadQiniuKodo(ctx context.Context, cfg map[string]string, image ImageFile
 		Bucket:       bucket,
 		Region:       region,
 		Endpoint:     endpoint,
+		Secure:       true,
+		StoragePath:  cfg["storage_path"],
+		CustomDomain: cfg["custom_domain"],
+	}, image)
+}
+
+func uploadBaiduBOS(ctx context.Context, cfg map[string]string, image ImageFile) (UploadResult, error) {
+	accessKeyID := strings.TrimSpace(cfg["access_key_id"])
+	secretAccessKey := strings.TrimSpace(cfg["secret_access_key"])
+	bucket := strings.TrimSpace(cfg["bucket"])
+	region := strings.TrimSpace(cfg["region"])
+	if accessKeyID == "" || secretAccessKey == "" || bucket == "" || region == "" {
+		return UploadResult{}, errors.New("百度云 BOS 配置缺少 AccessKeyId、SecretAccessKey、存储桶或地域")
+	}
+	endpoint := fmt.Sprintf("s3.%s.bcebos.com", region)
+	return uploadS3Compatible(ctx, s3CompatibleConfig{
+		AccessKey:    accessKeyID,
+		SecretKey:    secretAccessKey,
+		Bucket:       bucket,
+		Region:       region,
+		Endpoint:     endpoint,
+		Secure:       true,
+		StoragePath:  cfg["storage_path"],
+		CustomDomain: cfg["custom_domain"],
+	}, image)
+}
+
+func uploadHuaweiOBS(ctx context.Context, cfg map[string]string, image ImageFile) (UploadResult, error) {
+	accessKeyID := strings.TrimSpace(cfg["access_key_id"])
+	secretAccessKey := strings.TrimSpace(cfg["secret_access_key"])
+	bucket := strings.TrimSpace(cfg["bucket"])
+	region := strings.TrimSpace(cfg["region"])
+	if accessKeyID == "" || secretAccessKey == "" || bucket == "" || region == "" {
+		return UploadResult{}, errors.New("华为云 OBS 配置缺少 AccessKeyId、SecretAccessKey、存储桶或地域")
+	}
+	endpoint := fmt.Sprintf("obs.%s.myhuaweicloud.com", region)
+	return uploadS3Compatible(ctx, s3CompatibleConfig{
+		AccessKey:    accessKeyID,
+		SecretKey:    secretAccessKey,
+		Bucket:       bucket,
+		Region:       region,
+		Endpoint:     endpoint,
+		Secure:       true,
+		StoragePath:  cfg["storage_path"],
+		CustomDomain: cfg["custom_domain"],
+	}, image)
+}
+
+func uploadUpYun(ctx context.Context, cfg map[string]string, image ImageFile) (UploadResult, error) {
+	bucket := strings.TrimSpace(cfg["bucket"])
+	operator := strings.TrimSpace(cfg["operator"])
+	password := strings.TrimSpace(cfg["password"])
+	if bucket == "" || operator == "" || password == "" {
+		return UploadResult{}, errors.New("又拍云 USS 配置缺少服务名、操作员或密码")
+	}
+	objectPath := objectPath(cfg["storage_path"], image.Filename)
+	uploadURL := joinURL("https://v0.api.upyun.com", bucket, objectPath)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, uploadURL, bytes.NewReader(image.Data))
+	if err != nil {
+		return UploadResult{}, err
+	}
+	req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(operator+":"+password)))
+	req.Header.Set("Content-Type", image.ContentType)
+	req.Header.Set("Content-Length", strconv.Itoa(len(image.Data)))
+	if err := doJSON(req, nil); err != nil {
+		return UploadResult{}, err
+	}
+	if customURL := customPublicURL(cfg["custom_domain"], objectPath); customURL != "" {
+		return UploadResult{URL: customURL}, nil
+	}
+	return UploadResult{}, errors.New("又拍云 USS 配置缺少加速域名，无法生成公开访问地址")
+}
+
+func uploadMinIO(ctx context.Context, cfg map[string]string, image ImageFile) (UploadResult, error) {
+	accessKey := strings.TrimSpace(cfg["access_key"])
+	secretKey := strings.TrimSpace(cfg["secret_key"])
+	bucket := strings.TrimSpace(cfg["bucket"])
+	endpoint := strings.TrimSpace(cfg["endpoint"])
+	if accessKey == "" || secretKey == "" || bucket == "" || endpoint == "" {
+		return UploadResult{}, errors.New("MinIO 配置缺少 Endpoint、AccessKey、SecretKey 或存储桶")
+	}
+	endpoint, secure := normalizeS3Endpoint(endpoint, cfg["use_ssl"])
+	return uploadS3Compatible(ctx, s3CompatibleConfig{
+		AccessKey:    accessKey,
+		SecretKey:    secretKey,
+		Bucket:       bucket,
+		Region:       strings.TrimSpace(cfg["region"]),
+		Endpoint:     endpoint,
+		Secure:       secure,
+		PathStyle:    true,
 		StoragePath:  cfg["storage_path"],
 		CustomDomain: cfg["custom_domain"],
 	}, image)
@@ -278,16 +378,22 @@ type s3CompatibleConfig struct {
 	Bucket       string
 	Region       string
 	Endpoint     string
+	Secure       bool
+	PathStyle    bool
 	StoragePath  string
 	CustomDomain string
 }
 
 func uploadS3Compatible(ctx context.Context, cfg s3CompatibleConfig, image ImageFile) (UploadResult, error) {
+	bucketLookup := minio.BucketLookupDNS
+	if cfg.PathStyle {
+		bucketLookup = minio.BucketLookupPath
+	}
 	client, err := minio.New(cfg.Endpoint, &minio.Options{
 		Creds:        credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
-		Secure:       true,
+		Secure:       cfg.Secure,
 		Region:       cfg.Region,
-		BucketLookup: minio.BucketLookupDNS,
+		BucketLookup: bucketLookup,
 	})
 	if err != nil {
 		return UploadResult{}, err
@@ -303,8 +409,28 @@ func uploadS3Compatible(ctx context.Context, cfg s3CompatibleConfig, image Image
 	if customURL := customPublicURL(cfg.CustomDomain, objectPath); customURL != "" {
 		return UploadResult{URL: customURL}, nil
 	}
-	return UploadResult{URL: fmt.Sprintf("https://%s.%s/%s", cfg.Bucket, cfg.Endpoint, objectPath)}, nil
+	scheme := "https"
+	if !cfg.Secure {
+		scheme = "http"
+	}
+	if cfg.PathStyle {
+		return UploadResult{URL: fmt.Sprintf("%s://%s/%s/%s", scheme, cfg.Endpoint, cfg.Bucket, objectPath)}, nil
+	}
+	return UploadResult{URL: fmt.Sprintf("%s://%s.%s/%s", scheme, cfg.Bucket, cfg.Endpoint, objectPath)}, nil
 }
+
+func normalizeS3Endpoint(endpoint string, useSSL string) (string, bool) {
+	secure := true
+	if strings.EqualFold(strings.TrimSpace(useSSL), "false") || strings.TrimSpace(useSSL) == "0" {
+		secure = false
+	}
+	if parsed, err := url.Parse(strings.TrimSpace(endpoint)); err == nil && parsed.Host != "" {
+		secure = parsed.Scheme != "http"
+		endpoint = parsed.Host
+	}
+	return strings.TrimRight(strings.TrimSpace(endpoint), "/"), secure
+}
+
 func uploadEasyImage(ctx context.Context, cfg map[string]string, image ImageFile) (UploadResult, error) {
 	apiURL := strings.TrimSpace(cfg["api_url"])
 	token := strings.TrimSpace(cfg["token"])

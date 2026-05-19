@@ -146,8 +146,21 @@ export function useWorkspaceConvert({
     });
   }
   function applyTaskRecords(data: ConvertTaskData) {
+    const recordsByFilename = new Map<string, ConversionRecord[]>();
+    for (const record of data.records) {
+      const filename = record.original_filename || '';
+      recordsByFilename.set(filename, [...(recordsByFilename.get(filename) || []), record]);
+    }
+    const canFallbackToPosition = data.records.length === batchFiles.value.length;
+
     for (const [index, file] of batchFiles.value.entries()) {
-      const record = data.records[index];
+      const filenameRecords = recordsByFilename.get(file.filename) || [];
+      const record = filenameRecords.shift() || (canFallbackToPosition ? data.records[index] : undefined);
+      if (filenameRecords.length) {
+        recordsByFilename.set(file.filename, filenameRecords);
+      } else {
+        recordsByFilename.delete(file.filename);
+      }
       if (!record) {
         file.status = 'failed';
         file.convertedContent = '';

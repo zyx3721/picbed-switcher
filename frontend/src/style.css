@@ -887,6 +887,9 @@ svg {
   box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
   scrollbar-width: none;
 }
+.local-target-field .select-menu {
+  inset: auto 0 calc(100% + 6px) 0;
+}
 .select-menu::-webkit-scrollbar { width: 0; height: 0; }
 .select-option {
   min-height: 44px;
@@ -1204,6 +1207,18 @@ svg {
 }
 .config-row[data-provider='qiniu']::before {
   background: #10b981;
+}
+.config-row[data-provider='baidu_bos']::before {
+  background: #2563eb;
+}
+.config-row[data-provider='huawei_obs']::before {
+  background: #dc2626;
+}
+.config-row[data-provider='upyun']::before {
+  background: #06b6d4;
+}
+.config-row[data-provider='minio']::before {
+  background: #dc2626;
 }
 .config-row[data-provider='easyimage']::before {
   background: #f97316;

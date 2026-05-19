@@ -38,6 +38,15 @@ export function useWorkspaceConfigForm({ activeTab, configs, showError, clearNot
     if (configForm.picbed_type === 'qiniu' && field.key === 'custom_domain') {
       return '自定义域名 / CDN测试域名';
     }
+    if (configForm.picbed_type === 'upyun' && field.key === 'bucket') {
+      return '服务名';
+    }
+    if (configForm.picbed_type === 'upyun' && field.key === 'custom_domain') {
+      return '加速域名 / 测试域名';
+    }
+    if (configForm.picbed_type === 'minio' && field.key === 'endpoint') {
+      return 'Endpoint';
+    }
     return zhFieldLabels[field.key] || field.label;
   }
   function fieldPlaceholder(field: ConfigField) {

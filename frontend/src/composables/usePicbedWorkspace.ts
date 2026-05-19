@@ -171,6 +171,8 @@ export function usePicbedWorkspace() {
     removeLocalImage,
     analyzeLocalBatch,
     uploadLocalBatch,
+    restoreLocalUploadWorkspace,
+    stopLocalUploadTaskPolling,
     downloadLocalFile,
     downloadAllLocalFiles,
   } = useWorkspaceLocalUpload({
@@ -248,9 +250,9 @@ export function usePicbedWorkspace() {
       user.value = data.user;
       localStorage.setItem('picbed_token', data.token);
       const authMessage = authMode.value === 'login' ? '登录成功' : '注册成功';
-      const authNotice = data.user.email_verified === false ? authMessage + '，邮箱尚未验证，请先完成邮箱验证' : authMessage;
+      const authNotice = data.user.email_verified === false ? authMessage + '，请完成邮箱验证，启用密码找回' : authMessage;
       showMessage(authNotice);
-      if (authMode.value === 'login' && data.user.email_verified === false) showToast(authNotice);
+      if (data.user.email_verified === false) showToast(authNotice);
       clearAuthForm();
       await loadWorkspaceData();
     } catch (err) {
@@ -350,6 +352,7 @@ export function usePicbedWorkspace() {
   }
   function logout() {
     stopConvertTaskPolling();
+    stopLocalUploadTaskPolling();
     token.value = '';
     user.value = null;
     configs.value = [];
@@ -367,6 +370,7 @@ export function usePicbedWorkspace() {
       user.value = data.user;
       await loadWorkspaceData();
       restoreConvertWorkspace();
+      restoreLocalUploadWorkspace();
     } catch {
       logout();
     }
@@ -416,6 +420,7 @@ export function usePicbedWorkspace() {
     clearToastTimer();
     if (bootTimer) window.clearTimeout(bootTimer);
     stopConvertTaskPolling();
+    stopLocalUploadTaskPolling();
     document.removeEventListener('pointerdown', handleGlobalPointerDown);
   });
 

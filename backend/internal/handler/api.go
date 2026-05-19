@@ -74,6 +74,7 @@ func (a *API) Register(router *gin.Engine) {
 	protected.POST("/convert/process", a.convertMarkdown)
 	protected.POST("/convert/batch", a.convertMarkdownBatch)
 	protected.POST("/convert/local-batch", a.convertLocalMarkdownBatch)
+	protected.POST("/convert/local-tasks", a.createLocalConvertTask)
 	protected.POST("/convert/tasks", a.createConvertTask)
 	protected.GET("/convert/tasks", a.listConvertTasks)
 	protected.GET("/convert/tasks/:id", a.getConvertTask)
