@@ -712,7 +712,7 @@ npm run build
 
 ## 4.4 配置Nginx反向代理
 
-在服务器上准备前端目录（例如 `/data/picbed-swticher/frontend/dist`），**将本地 `dist` 目录中的所有文件和子目录整体上传到该目录**，保持结构不变，例如：
+在服务器上准备前端目录（例如 `/data/picbed-switcher/frontend/dist`），**将本地 `dist` 目录中的所有文件和子目录整体上传到该目录**，保持结构不变，例如：
 
 ```bash
 /data/myBlog/admin/dist/
@@ -721,7 +721,7 @@ npm run build
 ├── index.html
 ```
 
-Nginx 中的 `root` 应指向 **包含 `index.html` 的目录本身**（如 `/data/picbed-swticher/frontend/dist` ，可按实际路径调整），而不是上级目录。
+Nginx 中的 `root` 应指向 **包含 `index.html` 的目录本身**（如 `/data/picbed-switcher/frontend/dist` ，可按实际路径调整），而不是上级目录。
 
 ### 4.4.1 HTTP 示例
 
@@ -733,7 +733,7 @@ server {
     server_name your-domain.com;   # 修改为你的域名/主机名，例如：picbed.cn
 
     # 前端静态资源目录（dist 构建产物）
-    root /data/picbed-swticher/frontend/dist;  # 按实际部署路径修改
+    root /data/picbed-switcher/frontend/dist;  # 按实际部署路径修改
     index index.html;
 
     # 限制上传文件大小（可选）
@@ -821,7 +821,7 @@ server {
     ssl_session_cache          shared:SSL:10m;
 
     # 前端静态资源目录（dist 构建产物）
-    root /data/picbed-swticher/frontend/dist;  # 按实际部署路径修改
+    root /data/picbed-switcher/frontend/dist;  # 按实际部署路径修改
     index index.html;
 
     # 限制上传文件大小（可选）

@@ -18,6 +18,9 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       TZ: Asia/Shanghai
 
+  #  ----------------------------------------------------------------
+  # 新建 Redis 容器（使用已有容器时注释此块）
+  # -----------------------------------------------------------------
   redis:
     image: redis:7-alpine
     container_name: picbed-redis
