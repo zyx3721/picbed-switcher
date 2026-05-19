@@ -1282,6 +1282,45 @@ table {
 .records-table-wrap td {
   text-align: center;
 }
+.records-table-wrap {
+  max-height: calc(45px + 15 * 49px);
+  overflow: auto;
+  scrollbar-width: none;
+}
+.records-table-wrap::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+.records-table-wrap thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f8fafc;
+}
+.record-toolbar-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.record-select-col {
+  width: 64px;
+  min-width: 64px;
+}
+.record-select-check {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.record-select-check input[type='checkbox'] {
+  width: 18px;
+  min-height: 18px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
 .clickable-row {
   cursor: pointer;
 }

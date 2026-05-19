@@ -397,6 +397,25 @@ export function usePicbedWorkspace() {
     recordDetailOpen.value = false;
     recordDetail.value = null;
   }
+  async function deleteRecords(ids: number[]) {
+    const uniqueIds = Array.from(new Set(ids.filter(id => id > 0)));
+    if (uniqueIds.length === 0) return;
+    loading.value = true;
+    try {
+      const data = await request<{ message: string }>('/api/convert/records', {
+        method: 'DELETE',
+        body: JSON.stringify({ ids: uniqueIds }),
+      });
+      if (recordDetail.value && uniqueIds.includes(recordDetail.value.id)) closeRecordDetail();
+      records.value = records.value.filter(record => !uniqueIds.includes(record.id));
+      showMessage(data.message || `已删除 ${uniqueIds.length} 条转换记录`);
+      await loadRecords();
+    } catch (err) {
+      showError(err instanceof Error ? err.message : '删除转换记录失败');
+    } finally {
+      loading.value = false;
+    }
+  }
   onMounted(() => {
     document.addEventListener('pointerdown', handleGlobalPointerDown);
     const query = new URLSearchParams(window.location.search);
@@ -547,6 +566,7 @@ export function usePicbedWorkspace() {
     loadRecords,
     openRecordDetail,
     closeRecordDetail,
+    deleteRecords,
     resendEmailVerification,
   };
 }

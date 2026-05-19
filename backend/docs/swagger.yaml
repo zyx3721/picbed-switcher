@@ -112,6 +112,13 @@ definitions:
       task_type:
         type: string
     type: object
+  handler.deleteRecordsRequest:
+    properties:
+      ids:
+        items:
+          type: integer
+        type: array
+    type: object
   handler.errorResponse:
     properties:
       error:
@@ -820,6 +827,40 @@ paths:
       tags:
       - convert
   /api/convert/records:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: 记录 ID 列表
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.deleteRecordsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.messageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 批量删除转换历史
+      tags:
+      - convert
     get:
       produces:
       - application/json

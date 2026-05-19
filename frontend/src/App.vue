@@ -139,6 +139,7 @@ const {
   loadRecords,
   openRecordDetail,
   closeRecordDetail,
+  deleteRecords,
   resendEmailVerification,
 } = usePicbedWorkspace();
 
@@ -161,7 +162,7 @@ provideWorkspace({
   handleLocalDocumentFiles, handleLocalDocumentDrop, handleLocalImageFiles, handleLocalImageDrop, removeLocalDocument, removeLocalImage,
   analyzeBatch, convertBatch, analyzeLocalBatch, uploadLocalBatch, closeGithubProxyDialog, confirmGithubProxyConvert,
   togglePreview, changedLines, downloadFile, downloadAll, downloadLocalFile, downloadAllLocalFiles, loadRecords,
-  openRecordDetail, closeRecordDetail, resendEmailVerification,
+  openRecordDetail, closeRecordDetail, deleteRecords, resendEmailVerification,
 });
 
 </script>

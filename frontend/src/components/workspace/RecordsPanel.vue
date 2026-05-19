@@ -1,9 +1,54 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import { Download, FileText, RefreshCw, X } from 'lucide-vue-next';
+import { computed, ref, watch } from 'vue';
+import { Download, FileText, RefreshCw, Trash2, X } from 'lucide-vue-next';
 import { useWorkspaceContext } from '../../composables/useWorkspaceContext';
 
-const { records, recordDetail, recordDetailOpen, typeLabel, loadRecords, openRecordDetail, closeRecordDetail } = useWorkspaceContext();
+const { records, recordDetail, recordDetailOpen, typeLabel, loadRecords, openRecordDetail, closeRecordDetail, deleteRecords } = useWorkspaceContext();
+const selectedRecordIds = ref<number[]>([]);
+const deletingRecords = ref(false);
+const selectedRecordCount = computed(() => selectedRecordIds.value.length);
+const allRecordsSelected = computed(() => records.value.length > 0 && selectedRecordIds.value.length === records.value.length);
+
+watch(
+  records,
+  items => {
+    const availableIds = new Set(items.map(item => item.id));
+    selectedRecordIds.value = selectedRecordIds.value.filter(id => availableIds.has(id));
+  },
+  { deep: false }
+);
+
+function toggleRecordSelection(recordId: number, checked: boolean) {
+  if (checked) {
+    if (!selectedRecordIds.value.includes(recordId)) selectedRecordIds.value = [...selectedRecordIds.value, recordId];
+    return;
+  }
+  selectedRecordIds.value = selectedRecordIds.value.filter(id => id !== recordId);
+}
+
+function handleRecordSelectionChange(recordId: number, event: Event) {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement)) return;
+  toggleRecordSelection(recordId, target.checked);
+}
+
+function handleAllRecordsSelectionChange(event: Event) {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement)) return;
+  selectedRecordIds.value = target.checked ? records.value.map(record => record.id) : [];
+}
+
+async function deleteSelectedRecords() {
+  if (selectedRecordIds.value.length === 0 || deletingRecords.value) return;
+  const ids = [...selectedRecordIds.value];
+  deletingRecords.value = true;
+  try {
+    await deleteRecords(ids);
+    selectedRecordIds.value = selectedRecordIds.value.filter(id => !ids.includes(id));
+  } finally {
+    deletingRecords.value = false;
+  }
+}
 
 function downloadRecordContent() {
   if (!recordDetail.value?.converted_content) return;
@@ -63,14 +108,29 @@ function hideUrlTooltip() {
       <p class="section-kicker">Timeline</p>
       <h2>转换历史</h2>
     </div>
-    <button class="secondary" type="button" @click="loadRecords">
-      <RefreshCw :size="18" />刷新
-    </button>
+    <div class="record-toolbar-actions">
+      <button class="secondary" type="button" @click="loadRecords">
+        <RefreshCw :size="18" />刷新
+      </button>
+      <button class="danger" type="button" :disabled="deletingRecords || selectedRecordCount === 0" @click="deleteSelectedRecords">
+        <Trash2 :size="18" />删除<span v-if="selectedRecordCount"> {{ selectedRecordCount }}</span>
+      </button>
+    </div>
   </div>
   <div class="table-wrap records-table-wrap">
     <table>
       <thead>
         <tr>
+          <th class="record-select-col">
+            <label class="record-select-check" aria-label="全选历史记录">
+              <input
+                type="checkbox"
+                :checked="allRecordsSelected"
+                :disabled="records.length === 0"
+                @change="handleAllRecordsSelectionChange"
+              />
+            </label>
+          </th>
           <th>文件</th>
           <th>源图床</th>
           <th>目标图床</th>
@@ -81,6 +141,15 @@ function hideUrlTooltip() {
       </thead>
       <tbody>
         <tr v-for="record in records" :key="record.id" class="clickable-row" @click="openRecordDetail(record)">
+          <td class="record-select-col" @click.stop>
+            <label class="record-select-check" :aria-label="`选择 ${record.original_filename}`">
+              <input
+                type="checkbox"
+                :checked="selectedRecordIds.includes(record.id)"
+                @change="handleRecordSelectionChange(record.id, $event)"
+              />
+            </label>
+          </td>
           <td>{{ record.original_filename }}</td>
           <td>{{ typeLabel(record.source_picbed) }}</td>
           <td>{{ typeLabel(record.target_picbed) }}</td>

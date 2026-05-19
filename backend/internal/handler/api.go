@@ -79,6 +79,7 @@ func (a *API) Register(router *gin.Engine) {
 	protected.GET("/convert/tasks", a.listConvertTasks)
 	protected.GET("/convert/tasks/:id", a.getConvertTask)
 	protected.GET("/convert/records", a.listRecords)
+	protected.DELETE("/convert/records", a.deleteRecords)
 	protected.GET("/convert/records/:id", a.getRecord)
 }
 

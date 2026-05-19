@@ -87,6 +87,10 @@ type batchMarkdownRequest struct {
 	TargetConfigID uint              `json:"target_config_id"`
 }
 
+type deleteRecordsRequest struct {
+	IDs []uint `json:"ids"`
+}
+
 type createConvertTaskRequest struct {
 	TaskType       string            `json:"task_type"`
 	Files          []markdownRequest `json:"files"`

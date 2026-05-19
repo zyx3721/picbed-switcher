@@ -22,6 +22,7 @@ import (
 	"github.com/jerion/picbed-switcher/internal/picbed"
 	"github.com/jerion/picbed-switcher/internal/utils"
 	"github.com/redis/go-redis/v9"
+	"gorm.io/gorm"
 )
 
 const maxLocalBatchUploadSize = 256 << 20
@@ -371,6 +372,69 @@ func (a *API) getRecord(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"record": record})
+}
+
+// deleteRecords godoc
+// @Summary 批量删除转换历史
+// @Tags convert
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body deleteRecordsRequest true "记录 ID 列表"
+// @Success 200 {object} messageResponse
+// @Failure 400 {object} errorResponse
+// @Failure 401 {object} errorResponse
+// @Failure 500 {object} errorResponse
+// @Router /api/convert/records [delete]
+func (a *API) deleteRecords(c *gin.Context) {
+	var req deleteRecordsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "请求参数格式不正确")
+		return
+	}
+	ids := uniquePositiveIDs(req.IDs)
+	if len(ids) == 0 {
+		respondError(c, http.StatusBadRequest, "请选择要删除的历史记录")
+		return
+	}
+	if len(ids) > 50 {
+		respondError(c, http.StatusBadRequest, "单次最多删除 50 条历史记录")
+		return
+	}
+
+	userID := middleware.UserID(c)
+	var ownedIDs []uint
+	if err := a.db.Model(&model.ConversionRecord{}).Where("user_id = ? AND id IN ?", userID, ids).Pluck("id", &ownedIDs).Error; err != nil {
+		respondError(c, http.StatusInternalServerError, "查询转换记录失败")
+		return
+	}
+	if len(ownedIDs) == 0 {
+		respondError(c, http.StatusBadRequest, "请选择要删除的历史记录")
+		return
+	}
+	if err := a.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("record_id IN ?", ownedIDs).Delete(&model.ConversionRecordDetail{}).Error; err != nil {
+			return err
+		}
+		return tx.Where("user_id = ? AND id IN ?", userID, ownedIDs).Delete(&model.ConversionRecord{}).Error
+	}); err != nil {
+		respondError(c, http.StatusInternalServerError, "删除转换记录失败")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("已删除 %d 条转换记录", len(ownedIDs))})
+}
+
+func uniquePositiveIDs(input []uint) []uint {
+	seen := map[uint]bool{}
+	ids := make([]uint, 0, len(input))
+	for _, id := range input {
+		if id == 0 || seen[id] {
+			continue
+		}
+		seen[id] = true
+		ids = append(ids, id)
+	}
+	return ids
 }
 
 // createConvertTask godoc
