@@ -282,7 +282,7 @@ npm install
 
 ```bash
 # 配置说明：
-# - 后端端口 = 8080：无需创建 .env 文件（默认值为 http://localhost:8080/api/v1）
+# - 后端端口 = 8080：无需创建 .env 文件（默认值为 http://localhost:8080）
 # - 后端端口 ≠ 8080：需要创建 .env 文件（指定正确端口，例如后端端口改为 8090）
 #   创建 .env 文件，例如：
 echo "VITE_API_BASE_URL=http://localhost:8080" > .env
@@ -296,7 +296,7 @@ npm run dev
 # 如果要指定外部访问和监听端口，可执行例如：
 npm run dev -- --host --port 5173
 
-# 方式2：后台运行（日志输出到 admin-frontend.log）
+# 方式2：后台运行（日志输出到 picbed-frontend.log）
 nohup npm run dev > picbed-frontend.log 2>&1 &
 ```
 
