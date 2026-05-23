@@ -153,16 +153,16 @@ CONTAINER ID   IMAGE                COMMAND                  CREATED          ST
 22205f8e78c6   postgres:17-alpine   "docker-entrypoint.s…"   34 minutes ago   Up 34 minutes   0.0.0.0:5432->5432/tcp, [::]:5432->5432/tcp   pg-prod
 ```
 
-## 3.2 克隆项目
+## 2.2 克隆项目
 
 ```bash
 git clone https://github.com/zyx3721/picbed-switcher.git
 cd picbed-switcher
 ```
 
-## 3.3 数据库配置
+## 2.3 数据库配置
 
-### 3.3.1 本地数据库创建
+### 2.3.1 本地数据库创建
 
 创建 PostgreSQL 数据库：
 
@@ -170,7 +170,7 @@ cd picbed-switcher
 psql -Upostgres -c "CREATE DATABASE picbed;"
 ```
 
-### 3.3.2 容器数据库创建
+### 2.3.2 容器数据库创建
 
 进入容器内的 psql 交互界面：
 
@@ -186,7 +186,7 @@ CREATE DATABASE picbed;
 
 应用会在首次启动时自动执行 `backend\migrations\001_init_schema.sql` 初始化数据库，包括创建表结构和初始数据。
 
-## 3.4 后端配置与启动
+## 2.4 后端配置与启动
 
 > 如果没有配置go的镜像代理，可以参考 [Go 国内加速：Go 国内加速镜像 | Go 技术论坛](https://learnku.com/go/wikis/38122)。
 
@@ -269,7 +269,7 @@ nohup go run cmd/main.go > app.log 2>&1 &
 
 后端服务默认运行在 `http://localhost:8080` ，如需指定地址和端口，请修改环境变量文件内的 `SERVER_HOST` 和 `SERVER_PORT` 参数。首次启动会自动创建数据库和默认管理员账户 `admin / 123456` 。
 
-## 3.5 前端配置与启动
+## 2.5 前端配置与启动
 
 1. 进入前端目录下载相关依赖：
 
@@ -302,7 +302,7 @@ nohup npm run dev > picbed-frontend.log 2>&1 &
 
 前端服务默认运行在 `http://localhost:5173/` 。
 
-## 3.6 访问系统
+## 2.6 访问系统
 
 - **首页**：`http://localhost:5173`
   - **默认用户名**：`admin`
