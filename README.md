@@ -178,7 +178,7 @@ psql -Upostgres -c "CREATE DATABASE picbed;"
 docker exec -it pg-prod psql -U postgres
 ```
 
-在 psql 中创建 blogdb 库（执行后输入 `\q` 退出）：
+在 psql 中创建 picbed 库（执行后输入 `\q` 退出）：
 
 ```bash
 CREATE DATABASE picbed;
@@ -315,7 +315,7 @@ nohup npm run dev > picbed-frontend.log 2>&1 &
 
 ## 3.1 部署目录结构
 
-所有相关文件统一放在 `deploy/` 目录下，单镜像包含前端（Nginx）、后端（blog-backend），通过 supervisord 管理多进程。
+所有相关文件统一放在 `deploy/` 目录下，单镜像包含前端（Nginx）、后端（backend），通过 supervisord 管理多进程。
 
 ```bash
 deploy/
@@ -434,7 +434,7 @@ docker compose ps
 # 查看实时日志
 docker compose logs -f picbed-switcher
 
-# 重启 blog 服务
+# 重启 picbed-switcher 服务
 docker compose restart picbed-switcher
 
 # 停止所有服务
@@ -515,7 +515,7 @@ server {
     return 301 https://$host$request_uri;
 }
 
-# blog 站点 HTTPS 配置
+# picbed 站点 HTTPS 配置
 server {
     # listen 443 ssl http2;  # Nginx 1.25 以下版本写法
     listen 443 ssl;
@@ -715,7 +715,7 @@ npm run build
 在服务器上准备前端目录（例如 `/data/picbed-switcher/frontend/dist`），**将本地 `dist` 目录中的所有文件和子目录整体上传到该目录**，保持结构不变，例如：
 
 ```bash
-/data/myBlog/admin/dist/
+/data/picbed-switcher/admin/dist/
 ├── assets/
 ├── favicon.svg
 ├── index.html
