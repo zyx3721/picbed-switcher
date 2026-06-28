@@ -42,8 +42,15 @@ jobs:
         with:
           go-version: '1.25'
           cache-dependency-path: backend/go.sum
+      
+      - name: 设置 Node 环境
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
-      - name: 交叉编译多平台二进制文件
+      - name: 交叉编译 Backend 多平台二进制文件
         working-directory: backend
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
@@ -70,33 +77,34 @@ jobs:
           tar -czf dist/picbed-switcher_${VERSION}_linux_arm64.tar.gz -C dist linux_arm64
           rm -rf dist/linux_arm64
 
-          echo "🔨 编译 macOS AMD64..."
-          GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o picbed-switcher ./cmd/main.go
-          prepare_package "dist/darwin_amd64"
-          mv picbed-switcher dist/darwin_amd64/
-          tar -czf dist/picbed-switcher_${VERSION}_darwin_amd64.tar.gz -C dist darwin_amd64
-          rm -rf dist/darwin_amd64
-
-          echo "🔨 编译 macOS ARM64..."
-          GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o picbed-switcher ./cmd/main.go
-          prepare_package "dist/darwin_arm64"
-          mv picbed-switcher dist/darwin_arm64/
-          tar -czf dist/picbed-switcher_${VERSION}_darwin_arm64.tar.gz -C dist darwin_arm64
-          rm -rf dist/darwin_arm64
-
-          echo "🔨 编译 Windows AMD64..."
-          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o picbed-switcher.exe ./cmd/main.go
-          prepare_package "dist/windows_amd64"
-          mv picbed-switcher.exe dist/windows_amd64/
-          cd dist && zip -r picbed-switcher_${VERSION}_windows_amd64.zip windows_amd64 && cd ..
-          rm -rf dist/windows_amd64
-
           echo "📝 生成校验和..."
           cd dist
-          sha256sum *.tar.gz *.zip > checksums.txt
+          sha256sum *.tar.gz > picbed-switcher_${VERSION}_checksums.txt
           cd ..
 
           echo "✅ 编译完成"
+      
+      - name: 构建 Frontend 静态资源包
+        working-directory: frontend
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          mkdir -p dist-release
+
+          echo "📦 安装 Frontend 依赖..."
+          npm ci
+
+          echo "🔨 构建 Frontend 静态资源..."
+          npm run build
+
+          echo "📦 打包 Frontend 静态资源..."
+          tar -czf dist-release/picbed-switcher-frontend_${VERSION}.tar.gz -C dist .
+
+          echo "📝 生成 Frontend 校验和..."
+          cd dist-release
+          sha256sum *.tar.gz > picbed-switcher-frontend_${VERSION}_checksums.txt
+          cd ..
+
+          echo "✅ Frontend 构建完成"
 
       - name: 构建并推送 Docker 镜像
         uses: docker/build-push-action@v7
@@ -145,12 +153,10 @@ jobs:
           ### 📦 二进制下载
           - Linux AMD64: \`picbed-switcher_${VERSION}_linux_amd64.tar.gz\`
           - Linux ARM64: \`picbed-switcher_${VERSION}_linux_arm64.tar.gz\`
-          - macOS AMD64: \`picbed-switcher_${VERSION}_darwin_amd64.tar.gz\`
-          - macOS ARM64: \`picbed-switcher_${VERSION}_darwin_arm64.tar.gz\`
-          - Windows AMD64: \`picbed-switcher_${VERSION}_windows_amd64.zip\`
+          - Frontend 静态资源包: \`picbed-switcher-frontend_${VERSION}.tar.gz\`
 
           ### 🔐 校验和
-          请下载 \`checksums.txt\` 验证文件完整性。
+          请下载 \`picbed-switcher_${VERSION}_checksums.txt\` 和 \`picbed-switcher-frontend_${VERSION}_checksums.txt\` 验证文件完整性。
           EOF
 
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
@@ -165,5 +171,6 @@ jobs:
           generate_release_notes: false
           files: |
             backend/dist/*.tar.gz
-            backend/dist/*.zip
-            backend/dist/checksums.txt
+            backend/dist/*_checksums.txt
+            frontend/dist-release/*.tar.gz
+            frontend/dist-release/*_checksums.txt
