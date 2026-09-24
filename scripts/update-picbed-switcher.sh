@@ -69,8 +69,8 @@ detect_arch() {
 
 # get_current_version 通过 picbed-switcher -v 读取当前已部署的版本号
 get_current_version() {
-    if [ -x "$INSTALL_DIR/backend/picbed-switcher" ]; then
-        CURRENT_VERSION=$("$INSTALL_DIR/backend/picbed-switcher" -v 2>/dev/null | head -n1 | awk '{print $2}')
+    if [ -x "$INSTALL_DIR/picbed-switcher" ]; then
+        CURRENT_VERSION=$("$INSTALL_DIR/picbed-switcher" -v 2>/dev/null | head -n1 | awk '{print $2}')
     fi
 }
 
@@ -246,38 +246,38 @@ stop_services() {
 install_packages() {
     echo ""
     echo_log_info "替换后端二进制"
-    if [ -f "$INSTALL_DIR/backend/picbed-switcher" ]; then
-        cp -f "$INSTALL_DIR/backend/picbed-switcher" "$INSTALL_DIR/backend/picbed-switcher.bak" || echo_log_error "备份后端二进制失败"
-        chmod --reference="$INSTALL_DIR/backend/picbed-switcher.bak" "$TMP_DIR/backend/linux_${ARCH}/picbed-switcher" 2>/dev/null
-        chown --reference="$INSTALL_DIR/backend/picbed-switcher.bak" "$TMP_DIR/backend/linux_${ARCH}/picbed-switcher" 2>/dev/null
+    if [ -f "$INSTALL_DIR/picbed-switcher" ]; then
+        cp -f "$INSTALL_DIR/picbed-switcher" "$INSTALL_DIR/picbed-switcher.bak" || echo_log_error "备份后端二进制失败"
+        chmod --reference="$INSTALL_DIR/picbed-switcher.bak" "$TMP_DIR/backend/linux_${ARCH}/picbed-switcher" 2>/dev/null
+        chown --reference="$INSTALL_DIR/picbed-switcher.bak" "$TMP_DIR/backend/linux_${ARCH}/picbed-switcher" 2>/dev/null
     fi
     chmod +x "$TMP_DIR/backend/linux_${ARCH}/picbed-switcher"
-    cp -f "$TMP_DIR/backend/linux_${ARCH}/picbed-switcher" "$INSTALL_DIR/backend/picbed-switcher.new" || echo_log_error "写入新后端二进制失败"
-    mv -f "$INSTALL_DIR/backend/picbed-switcher.new" "$INSTALL_DIR/backend/picbed-switcher" || echo_log_error "替换后端二进制失败"
+    cp -f "$TMP_DIR/backend/linux_${ARCH}/picbed-switcher" "$INSTALL_DIR/picbed-switcher.new" || echo_log_error "写入新后端二进制失败"
+    mv -f "$INSTALL_DIR/picbed-switcher.new" "$INSTALL_DIR/picbed-switcher" || echo_log_error "替换后端二进制失败"
 
-    echo_log_info "替换前端静态产物目录 frontend"
-    if [ -d "$INSTALL_DIR/frontend" ]; then
-        rm -rf "$INSTALL_DIR/frontend.bak"
-        mv "$INSTALL_DIR/frontend" "$INSTALL_DIR/frontend.bak" || echo_log_error "备份前端产物失败"
+    echo_log_info "替换前端静态产物目录 dist"
+    if [ -d "$INSTALL_DIR/dist" ]; then
+        rm -rf "$INSTALL_DIR/dist.bak"
+        mv "$INSTALL_DIR/dist" "$INSTALL_DIR/dist.bak" || echo_log_error "备份前端产物失败"
     fi
-    cp -a "$TMP_DIR/frontend" "$INSTALL_DIR/frontend" || echo_log_error "替换前端产物失败"
-    [ -d "$INSTALL_DIR/frontend.bak" ] && chown -R --reference="$INSTALL_DIR/frontend.bak" "$INSTALL_DIR/frontend" 2>/dev/null
+    cp -a "$TMP_DIR/frontend" "$INSTALL_DIR/dist" || echo_log_error "替换前端产物失败"
+    [ -d "$INSTALL_DIR/dist.bak" ] && chown -R --reference="$INSTALL_DIR/dist.bak" "$INSTALL_DIR/dist" 2>/dev/null
     echo_log_info "新版本文件已就绪"
 }
 
 # rollback 新版本启动异常时恢复旧版二进制与前端产物并重启服务
 rollback() {
     echo_log_warn "新版本启动异常，正在回滚旧版本..."
-    if [ -f "$INSTALL_DIR/backend/picbed-switcher.bak" ]; then
-        mv -f "$INSTALL_DIR/backend/picbed-switcher.bak" "$INSTALL_DIR/backend/picbed-switcher" && chmod +x "$INSTALL_DIR/backend/picbed-switcher"
+    if [ -f "$INSTALL_DIR/picbed-switcher.bak" ]; then
+        mv -f "$INSTALL_DIR/picbed-switcher.bak" "$INSTALL_DIR/picbed-switcher" && chmod +x "$INSTALL_DIR/picbed-switcher"
     fi
-    if [ -d "$INSTALL_DIR/frontend.bak" ]; then
-        rm -rf "$INSTALL_DIR/frontend"
-        mv "$INSTALL_DIR/frontend.bak" "$INSTALL_DIR/frontend"
+    if [ -d "$INSTALL_DIR/dist.bak" ]; then
+        rm -rf "$INSTALL_DIR/dist"
+        mv "$INSTALL_DIR/dist.bak" "$INSTALL_DIR/dist"
     fi
     echo_log_info "使用旧版本重新启动服务"
     "$BACKEND_SCRIPT" start
-    echo_log_error "已回滚到旧版本并重启，请检查 $INSTALL_DIR/backend/app.log 排查原因"
+    echo_log_error "已回滚到旧版本并重启，请检查 $INSTALL_DIR/app.log 排查原因"
 }
 
 # start_services 启动后端服务并做进程存活检查，失败时自动回滚；前端静态目录由 Nginx 直接生效
@@ -287,13 +287,13 @@ start_services() {
     "$BACKEND_SCRIPT" start
     sleep 3
     local pid ok=1
-    pid=$(cat "$INSTALL_DIR/backend/app.pid" 2>/dev/null)
+    pid=$(cat "$INSTALL_DIR/app.pid" 2>/dev/null)
     { [ -z "$pid" ] || ! kill -0 "$pid" 2>/dev/null; } && ok=0
     [ $ok -eq 0 ] && rollback
-    rm -f "$INSTALL_DIR/backend/picbed-switcher.bak"
-    rm -rf "$INSTALL_DIR/frontend.bak"
+    rm -f "$INSTALL_DIR/picbed-switcher.bak"
+    rm -rf "$INSTALL_DIR/dist.bak"
     local new_version
-    new_version=$("$INSTALL_DIR/backend/picbed-switcher" -v 2>/dev/null | head -n1 | awk '{print $2}')
+    new_version=$("$INSTALL_DIR/picbed-switcher" -v 2>/dev/null | head -n1 | awk '{print $2}')
     echo_log_info "\033[33m更新完成，当前版本: ${new_version:-$TARGET_TAG}\033[0m"
 }
 

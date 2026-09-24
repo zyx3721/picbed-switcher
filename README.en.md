@@ -205,17 +205,16 @@ The backend archive contains the `picbed-switcher` binary (`picbed-switcher.exe`
 
 ```bash
 VERSION=3.0.1
-mkdir -p /data/picbed-switcher && cd /data/picbed-switcher
+mkdir -p /data/picbed-switcher/dist && cd /data/picbed-switcher
 sha256sum -c SHA256SUMS
-mkdir -p backend frontend
-tar -xzf picbed-switcher_${VERSION}_linux_amd64.tar.gz -C backend --strip-components=1
-tar -xzf picbed-switcher-frontend_${VERSION}.tar.gz -C frontend
+tar -xzf picbed-switcher_${VERSION}_linux_amd64.tar.gz --strip-components=1
+tar -xzf picbed-switcher-frontend_${VERSION}.tar.gz -C dist
 ```
 
 **2. Configure and start the backend**
 
 ```bash
-cd /data/picbed-switcher/backend
+cd /data/picbed-switcher
 cp .env.example .env
 vim .env                   # database connection, JWT_SECRET and SMTP mail
 ./picbed-switcher
@@ -251,8 +250,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=/data/picbed-switcher/backend
-ExecStart=/data/picbed-switcher/backend/picbed-switcher
+WorkingDirectory=/data/picbed-switcher
+ExecStart=/data/picbed-switcher/picbed-switcher
 Restart=on-failure
 RestartSec=5
 LimitNOFILE=65535
@@ -267,7 +266,7 @@ systemctl daemon-reload && systemctl enable --now picbed-backend
 
 **3. Deploy the frontend behind Nginx**
 
-Serve the `frontend/` directory as the Nginx static root and proxy `/api/` to the backend:
+Serve the `dist/` directory as the Nginx static root and proxy `/api/` to the backend:
 
 ```nginx
 server {
@@ -276,7 +275,7 @@ server {
     client_max_body_size 50m;
 
     location / {
-        root /data/picbed-switcher/frontend;
+        root /data/picbed-switcher/dist;
         try_files $uri $uri/ /index.html;
     }
 
