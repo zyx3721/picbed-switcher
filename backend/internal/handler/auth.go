@@ -181,7 +181,7 @@ func (a *API) verifyEmail(c *gin.Context) {
 		if err := tx.Model(&user).Update("email_verified_at", now).Error; err != nil {
 			return err
 		}
-		return tx.Model(&verification).Update("used_at", now).Error
+		return tx.Where("user_id = ?", user.ID).Delete(&model.EmailVerificationToken{}).Error
 	}); err != nil {
 		respondError(c, http.StatusInternalServerError, "邮箱验证失败")
 		return
