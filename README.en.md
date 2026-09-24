@@ -440,6 +440,7 @@ picbed-switcher/
 
 | Version | Date | Changelog |
 | --- | --- | --- |
+| v3.0.2 | 2026-09-24 | [verchanglog/v3.0.2.md](verchanglog/v3.0.2.md) (Chinese) |
 | v3.0.1 | 2026-05-19 | [verchanglog/v3.0.1.md](verchanglog/v3.0.1.md) (Chinese) |
 | v3.0.0 | 2026-05-19 | [verchanglog/v3.0.0.md](verchanglog/v3.0.0.md) (Chinese) |
 | v2.1.0 | 2026-05-18 | [verchanglog/v2.1.0.md](verchanglog/v2.1.0.md) (Chinese) |
