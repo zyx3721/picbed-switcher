@@ -417,6 +417,9 @@ picbed-switcher/
 │   └── .env.example
 ├── docs/                    完整手册
 │   └── manual.md
+├── scripts/                 运维脚本
+│   ├── run.sh               后端服务启停管理（start/stop/restart）
+│   └── update-picbed-switcher.sh  二进制部署在线更新脚本
 ├── verchanglog/             版本更新日志
 ├── .github/                 GitHub Actions 工作流与预览图
 ├── LICENSE

@@ -417,6 +417,9 @@ picbed-switcher/
 │   └── .env.example
 ├── docs/                    full manual
 │   └── manual.md
+├── scripts/                 ops scripts
+│   ├── run.sh               backend service start/stop/restart
+│   └── update-picbed-switcher.sh  online updater for binary deployments
 ├── verchanglog/             release changelogs
 ├── .github/                 GitHub Actions workflows and preview images
 ├── LICENSE

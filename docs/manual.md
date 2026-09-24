@@ -121,6 +121,9 @@ picbed-switcher/
 │   ├── supervisord.conf
 │   ├── entrypoint.sh
 │   └── .env.example
+├── scripts/                  # 运维脚本
+│   ├── run.sh               # 后端服务启停管理（start/stop/restart）
+│   └── update-picbed-switcher.sh  # 二进制部署在线更新脚本
 ├── .github/                  # 项目图片等 GitHub 资源
 ├── .dockerignore
 ├── .gitignore
