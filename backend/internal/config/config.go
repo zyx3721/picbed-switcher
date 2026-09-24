@@ -60,7 +60,14 @@ type RedisConfig struct {
 	WorkerConcurrency int
 }
 
+// Load 加载配置，等价于 LoadWithOverrides(nil)
 func Load() *Config {
+	return LoadWithOverrides(nil)
+}
+
+// LoadWithOverrides 加载配置，overrides 中的显式值优先于环境变量（含 .env 文件），
+// 取值优先级为：命令行参数覆盖 > 环境变量 > 默认值
+func LoadWithOverrides(overrides map[string]string) *Config {
 	expireHours, err := strconv.Atoi(getEnv("JWT_EXPIRE_HOURS", "24"))
 	if err != nil || expireHours <= 0 {
 		expireHours = 24
@@ -84,20 +91,20 @@ func Load() *Config {
 
 	return &Config{
 		Server: ServerConfig{
-			Host: getEnv("SERVER_HOST", "localhost"),
-			Port: getEnv("SERVER_PORT", "8080"),
-			Mode: getEnv("GIN_MODE", "debug"),
+			Host: lookupValue(overrides, "host", "SERVER_HOST", "localhost"),
+			Port: lookupValue(overrides, "port", "SERVER_PORT", "8080"),
+			Mode: lookupValue(overrides, "mode", "GIN_MODE", "debug"),
 		},
 		Database: DatabaseConfig{
-			Host:     getEnv("DB_HOST", "localhost"),
-			Port:     getEnv("DB_PORT", "5432"),
-			Name:     getEnv("DB_NAME", "picbed_switcher"),
-			User:     getEnv("DB_USER", "postgres"),
-			Password: getEnv("DB_PASSWORD", "postgres"),
-			SSLMode:  getEnv("DB_SSLMODE", "disable"),
+			Host:     lookupValue(overrides, "db_host", "DB_HOST", "localhost"),
+			Port:     lookupValue(overrides, "db_port", "DB_PORT", "5432"),
+			Name:     lookupValue(overrides, "db_name", "DB_NAME", "picbed_switcher"),
+			User:     lookupValue(overrides, "db_user", "DB_USER", "postgres"),
+			Password: lookupValue(overrides, "db_password", "DB_PASSWORD", "postgres"),
+			SSLMode:  lookupValue(overrides, "db_sslmode", "DB_SSLMODE", "disable"),
 		},
 		JWT: JWTConfig{
-			Secret:      getEnv("JWT_SECRET", "dev-change-me"),
+			Secret:      lookupValue(overrides, "jwt_secret", "JWT_SECRET", "dev-change-me"),
 			ExpireHours: expireHours,
 		},
 		Mail: MailConfig{
@@ -166,6 +173,17 @@ func boolEnv(key string, defaultValue bool) bool {
 	default:
 		return defaultValue
 	}
+}
+
+// lookupValue 按 overrides 显式值、环境变量、默认值的顺序取值，
+// overrides 的 key 为命令行参数对应的语义键，与具体环境变量名解耦
+func lookupValue(overrides map[string]string, key, envKey, defaultValue string) string {
+	if overrides != nil {
+		if value, ok := overrides[key]; ok && value != "" {
+			return value
+		}
+	}
+	return getEnv(envKey, defaultValue)
 }
 
 func getEnv(key, defaultValue string) string {

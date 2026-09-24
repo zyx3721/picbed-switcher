@@ -192,10 +192,14 @@ Download the matching archive from the [GitHub Releases](https://github.com/zyx3
 | --- | --- |
 | Linux x86_64 | `picbed-switcher_<version>_linux_amd64.tar.gz` |
 | Linux ARM64 (Kunpeng, Phytium, etc.) | `picbed-switcher_<version>_linux_arm64.tar.gz` |
+| macOS (Intel) | `picbed-switcher_<version>_darwin_amd64.tar.gz` |
+| macOS (Apple silicon) | `picbed-switcher_<version>_darwin_arm64.tar.gz` |
+| Windows x86_64 | `picbed-switcher_<version>_windows_amd64.zip` |
+| Windows ARM64 | `picbed-switcher_<version>_windows_arm64.zip` |
 | Console (required on any platform) | `picbed-switcher-frontend_<version>.tar.gz` |
 | Checksums | `picbed-switcher_<version>_checksums.txt` |
 
-The backend archive contains the `picbed-switcher` binary, `.env.example` and `README.txt`; the frontend archive contains the Vite static build, ready for Nginx or any static server.
+The backend archive contains the `picbed-switcher` binary (`picbed-switcher.exe` on Windows), `.env.example` and `README.txt`; the frontend archive contains the Vite static build, ready for Nginx or any static server.
 
 **1. Verify and extract**
 
@@ -218,6 +222,23 @@ vim .env                   # database connection, JWT_SECRET and SMTP mail
 ```
 
 The backend listens on `http://localhost:8080` by default; on first start it runs the database migrations and creates the default admin.
+
+The backend also accepts command-line flags; an explicit flag takes precedence over environment variables and the `.env` file. `./picbed-switcher -v` prints version info (version, commit, build date) and `./picbed-switcher -h` lists all flags:
+
+| Flag | Equivalent env var | Description |
+| --- | --- | --- |
+| `-host` | `SERVER_HOST` | Listen host |
+| `-port` | `SERVER_PORT` | Listen port |
+| `-mode` | `GIN_MODE` | Gin mode (debug/release/test) |
+| `-db-host` | `DB_HOST` | Database host |
+| `-db-port` | `DB_PORT` | Database port |
+| `-db-name` | `DB_NAME` | Database name |
+| `-db-user` | `DB_USER` | Database user |
+| `-db-password` | `DB_PASSWORD` | Database password |
+| `-db-sslmode` | `DB_SSLMODE` | Database SSL mode |
+| `-jwt-secret` | `JWT_SECRET` | JWT signing secret |
+| `-env` | — | Path to the `.env` config file |
+| `-v`, `-version` | — | Print version info and exit |
 
 For a long-running setup, hand it to systemd:
 
@@ -366,6 +387,7 @@ picbed-switcher/
 ├── backend/                 Go backend
 │   ├── cmd/                 application entrypoint
 │   ├── internal/            internal modules
+│   │   ├── buildinfo/       build version info (injected via -ldflags)
 │   │   ├── config/          environment config loading
 │   │   ├── database/        database connection and initialization
 │   │   ├── handler/         HTTP routes and handlers

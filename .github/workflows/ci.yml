@@ -67,9 +67,13 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: 交叉编译 Backend 多平台二进制文件
+        id: backend-build
         working-directory: backend
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
+          BUILD_COMMIT=$(git rev-parse --short HEAD)
+          BUILD_DATE=$(TZ=Asia/Shanghai date +"%Y-%m-%dT%H:%M:%S%:z")
+          LDFLAGS="-s -w -X 'github.com/jerion/picbed-switcher/internal/buildinfo.Version=v${VERSION}' -X 'github.com/jerion/picbed-switcher/internal/buildinfo.Commit=${BUILD_COMMIT}' -X 'github.com/jerion/picbed-switcher/internal/buildinfo.BuildDate=${BUILD_DATE}'"
           mkdir -p dist
 
           prepare_package() {
@@ -80,25 +84,55 @@ jobs:
           }
 
           echo "🔨 编译 Linux AMD64..."
-          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o picbed-switcher ./cmd/main.go
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o picbed-switcher ./cmd/main.go
           prepare_package "dist/linux_amd64"
           mv picbed-switcher dist/linux_amd64/
           tar -czf dist/picbed-switcher_${VERSION}_linux_amd64.tar.gz -C dist linux_amd64
           rm -rf dist/linux_amd64
 
           echo "🔨 编译 Linux ARM64..."
-          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o picbed-switcher ./cmd/main.go
+          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o picbed-switcher ./cmd/main.go
           prepare_package "dist/linux_arm64"
           mv picbed-switcher dist/linux_arm64/
           tar -czf dist/picbed-switcher_${VERSION}_linux_arm64.tar.gz -C dist linux_arm64
           rm -rf dist/linux_arm64
 
+          echo "🔨 编译 macOS AMD64..."
+          GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o picbed-switcher ./cmd/main.go
+          prepare_package "dist/darwin_amd64"
+          mv picbed-switcher dist/darwin_amd64/
+          tar -czf dist/picbed-switcher_${VERSION}_darwin_amd64.tar.gz -C dist darwin_amd64
+          rm -rf dist/darwin_amd64
+
+          echo "🔨 编译 macOS ARM64..."
+          GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o picbed-switcher ./cmd/main.go
+          prepare_package "dist/darwin_arm64"
+          mv picbed-switcher dist/darwin_arm64/
+          tar -czf dist/picbed-switcher_${VERSION}_darwin_arm64.tar.gz -C dist darwin_arm64
+          rm -rf dist/darwin_arm64
+
+          echo "🔨 编译 Windows AMD64..."
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o picbed-switcher.exe ./cmd/main.go
+          prepare_package "dist/windows_amd64"
+          mv picbed-switcher.exe dist/windows_amd64/
+          cd dist && zip -r picbed-switcher_${VERSION}_windows_amd64.zip windows_amd64 && cd ..
+          rm -rf dist/windows_amd64
+
+          echo "🔨 编译 Windows ARM64..."
+          GOOS=windows GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o picbed-switcher.exe ./cmd/main.go
+          prepare_package "dist/windows_arm64"
+          mv picbed-switcher.exe dist/windows_arm64/
+          cd dist && zip -r picbed-switcher_${VERSION}_windows_arm64.zip windows_arm64 && cd ..
+          rm -rf dist/windows_arm64
+
           echo "📝 生成校验和..."
           cd dist
-          sha256sum *.tar.gz > picbed-switcher_${VERSION}_checksums.txt
+          sha256sum *.tar.gz *.zip > picbed-switcher_${VERSION}_checksums.txt
           cd ..
 
           echo "✅ 编译完成"
+          echo "commit=${BUILD_COMMIT}" >> $GITHUB_OUTPUT
+          echo "build_date=${BUILD_DATE}" >> $GITHUB_OUTPUT
       
       - name: 构建 Frontend 静态资源包
         working-directory: frontend
@@ -133,6 +167,8 @@ jobs:
           provenance: false
           build-args: |
             APP_VERSION=${{ github.ref_name }}
+            APP_COMMIT=${{ steps.backend-build.outputs.commit }}
+            APP_BUILD_DATE=${{ steps.backend-build.outputs.build_date }}
             NPM_REGISTRY=https://registry.npmjs.org
             GOPROXY=https://proxy.golang.org,direct
 
@@ -176,6 +212,10 @@ jobs:
           ### 📦 二进制下载
           - Linux AMD64: \`picbed-switcher_${VERSION}_linux_amd64.tar.gz\`
           - Linux ARM64: \`picbed-switcher_${VERSION}_linux_arm64.tar.gz\`
+          - macOS AMD64: \`picbed-switcher_${VERSION}_darwin_amd64.tar.gz\`
+          - macOS ARM64: \`picbed-switcher_${VERSION}_darwin_arm64.tar.gz\`
+          - Windows AMD64: \`picbed-switcher_${VERSION}_windows_amd64.zip\`
+          - Windows ARM64: \`picbed-switcher_${VERSION}_windows_arm64.zip\`
           - Frontend 静态资源包: \`picbed-switcher-frontend_${VERSION}.tar.gz\`
 
           ### 🔐 校验和
@@ -194,6 +234,7 @@ jobs:
           generate_release_notes: false
           files: |
             backend/dist/*.tar.gz
+            backend/dist/*.zip
             backend/dist/*_checksums.txt
             frontend/dist-release/*.tar.gz
             frontend/dist-release/*_checksums.txt

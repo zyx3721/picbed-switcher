@@ -30,7 +30,11 @@ COPY backend/ ./
 
 ARG CGO_ENABLED=0
 ENV CGO_ENABLED=${CGO_ENABLED}
-RUN go build -o picbed-backend ./cmd/main.go
+
+ARG APP_VERSION=dev
+ARG APP_COMMIT=unknown
+ARG APP_BUILD_DATE=unknown
+RUN go build -o picbed-backend -ldflags="-s -w -X 'github.com/jerion/picbed-switcher/internal/buildinfo.Version=${APP_VERSION}' -X 'github.com/jerion/picbed-switcher/internal/buildinfo.Commit=${APP_COMMIT}' -X 'github.com/jerion/picbed-switcher/internal/buildinfo.BuildDate=${APP_BUILD_DATE}'" ./cmd/main.go
 
 ############################
 # 3) runtime

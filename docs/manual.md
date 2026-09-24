@@ -89,6 +89,7 @@ picbed-switcher/
 ├── backend/                  # Go 后端服务
 │   ├── cmd/                  # 应用入口
 │   ├── internal/             # 后端内部模块
+│   │   ├── buildinfo/        # 构建版本信息（-ldflags 注入）
 │   │   ├── config/           # 环境配置加载
 │   │   ├── database/         # 数据库连接与初始化
 │   │   ├── handler/          # HTTP 路由与处理器
@@ -696,6 +697,27 @@ systemctl start picbed-backend
 # 设置开机自启
 systemctl enable --now picbed-backend
 ```
+
+5. 命令行参数：
+
+后端同时支持命令行参数，显式传入的参数优先于环境变量与 `.env` 文件；`./picbed-backend -v` 可查看版本信息（版本、commit、构建时间），`./picbed-backend -h` 查看全部参数：
+
+| 参数 | 等价环境变量 | 说明 |
+| --- | --- | --- |
+| `-host` | `SERVER_HOST` | 后端监听主机 |
+| `-port` | `SERVER_PORT` | 后端监听端口 |
+| `-mode` | `GIN_MODE` | Gin 运行模式（debug/release/test） |
+| `-db-host` | `DB_HOST` | 数据库主机 |
+| `-db-port` | `DB_PORT` | 数据库端口 |
+| `-db-name` | `DB_NAME` | 数据库名称 |
+| `-db-user` | `DB_USER` | 数据库用户 |
+| `-db-password` | `DB_PASSWORD` | 数据库密码 |
+| `-db-sslmode` | `DB_SSLMODE` | 数据库 SSL 模式 |
+| `-jwt-secret` | `JWT_SECRET` | JWT 签名密钥 |
+| `-env` | 无 | 指定 `.env` 配置文件路径 |
+| `-v`、`-version` | 无 | 显示版本信息并退出 |
+
+通过 Release 下载的二进制与 Docker 镜像内的后端，版本信息在发布构建时通过 `-ldflags -X` 注入 `internal/buildinfo` 包；源码直接 `go build` / `go run` 编译时版本显示为 `dev`。
 
 ## 4.3 前端构建与配置
 

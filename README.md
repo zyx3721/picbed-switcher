@@ -192,10 +192,14 @@ docker compose down                     # 停止所有服务
 | --- | --- |
 | Linux x86_64 | `picbed-switcher_<版本>_linux_amd64.tar.gz` |
 | Linux ARM64（鲲鹏、飞腾等） | `picbed-switcher_<版本>_linux_arm64.tar.gz` |
+| macOS Intel 芯片 | `picbed-switcher_<版本>_darwin_amd64.tar.gz` |
+| macOS Apple 芯片 | `picbed-switcher_<版本>_darwin_arm64.tar.gz` |
+| Windows x86_64 | `picbed-switcher_<版本>_windows_amd64.zip` |
+| Windows ARM64 | `picbed-switcher_<版本>_windows_arm64.zip` |
 | 前端界面（以上任意平台都需要） | `picbed-switcher-frontend_<版本>.tar.gz` |
 | 校验和 | `picbed-switcher_<版本>_checksums.txt` |
 
-后端包内是 `picbed-switcher` 可执行文件、`.env.example` 与 `README.txt`；前端包内是 Vite 构建的静态资源，部署到 Nginx 等任意静态服务器即可。
+后端包内是 `picbed-switcher` 可执行文件（Windows 为 `picbed-switcher.exe`）、`.env.example` 与 `README.txt`；前端包内是 Vite 构建的静态资源，部署到 Nginx 等任意静态服务器即可。
 
 **1. 校验并解压**
 
@@ -218,6 +222,23 @@ vim .env                   # 配置数据库连接、JWT_SECRET 与 SMTP 邮件
 ```
 
 后端默认监听 `http://localhost:8080`，首次启动会自动执行数据库迁移并创建默认管理员。
+
+后端同时支持命令行参数，显式传入的参数优先于环境变量与 `.env` 文件；`./picbed-switcher -v` 可查看版本信息（版本、commit、构建时间），`./picbed-switcher -h` 查看全部参数：
+
+| 参数 | 等价环境变量 | 说明 |
+| --- | --- | --- |
+| `-host` | `SERVER_HOST` | 后端监听主机 |
+| `-port` | `SERVER_PORT` | 后端监听端口 |
+| `-mode` | `GIN_MODE` | Gin 运行模式（debug/release/test） |
+| `-db-host` | `DB_HOST` | 数据库主机 |
+| `-db-port` | `DB_PORT` | 数据库端口 |
+| `-db-name` | `DB_NAME` | 数据库名称 |
+| `-db-user` | `DB_USER` | 数据库用户 |
+| `-db-password` | `DB_PASSWORD` | 数据库密码 |
+| `-db-sslmode` | `DB_SSLMODE` | 数据库 SSL 模式 |
+| `-jwt-secret` | `JWT_SECRET` | JWT 签名密钥 |
+| `-env` | 无 | 指定 `.env` 配置文件路径 |
+| `-v`、`-version` | 无 | 显示版本信息并退出 |
 
 需要常驻时交给 systemd：
 
@@ -366,6 +387,7 @@ picbed-switcher/
 ├── backend/                 Go 后端服务
 │   ├── cmd/                 应用入口
 │   ├── internal/            后端内部模块
+│   │   ├── buildinfo/       构建版本信息（-ldflags 注入）
 │   │   ├── config/          环境配置加载
 │   │   ├── database/        数据库连接与初始化
 │   │   ├── handler/         HTTP 路由与处理器
