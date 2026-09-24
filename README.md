@@ -197,7 +197,7 @@ docker compose down                     # 停止所有服务
 | Windows x86_64 | `picbed-switcher_<版本>_windows_amd64.zip` |
 | Windows ARM64 | `picbed-switcher_<版本>_windows_arm64.zip` |
 | 前端界面（以上任意平台都需要） | `picbed-switcher-frontend_<版本>.tar.gz` |
-| 校验和 | `picbed-switcher_<版本>_checksums.txt` |
+| 校验和 | `SHA256SUMS` |
 
 后端包内是 `picbed-switcher` 可执行文件（Windows 为 `picbed-switcher.exe`）、`.env.example` 与 `README.txt`；前端包内是 Vite 构建的静态资源，部署到 Nginx 等任意静态服务器即可。
 
@@ -206,7 +206,7 @@ docker compose down                     # 停止所有服务
 ```bash
 VERSION=3.0.1
 mkdir -p /data/picbed-switcher && cd /data/picbed-switcher
-sha256sum -c picbed-switcher_${VERSION}_checksums.txt
+sha256sum -c SHA256SUMS
 mkdir -p backend frontend
 tar -xzf picbed-switcher_${VERSION}_linux_amd64.tar.gz -C backend --strip-components=1
 tar -xzf picbed-switcher-frontend_${VERSION}.tar.gz -C frontend

@@ -197,7 +197,7 @@ Download the matching archive from the [GitHub Releases](https://github.com/zyx3
 | Windows x86_64 | `picbed-switcher_<version>_windows_amd64.zip` |
 | Windows ARM64 | `picbed-switcher_<version>_windows_arm64.zip` |
 | Console (required on any platform) | `picbed-switcher-frontend_<version>.tar.gz` |
-| Checksums | `picbed-switcher_<version>_checksums.txt` |
+| Checksums | `SHA256SUMS` |
 
 The backend archive contains the `picbed-switcher` binary (`picbed-switcher.exe` on Windows), `.env.example` and `README.txt`; the frontend archive contains the Vite static build, ready for Nginx or any static server.
 
@@ -206,7 +206,7 @@ The backend archive contains the `picbed-switcher` binary (`picbed-switcher.exe`
 ```bash
 VERSION=3.0.1
 mkdir -p /data/picbed-switcher && cd /data/picbed-switcher
-sha256sum -c picbed-switcher_${VERSION}_checksums.txt
+sha256sum -c SHA256SUMS
 mkdir -p backend frontend
 tar -xzf picbed-switcher_${VERSION}_linux_amd64.tar.gz -C backend --strip-components=1
 tar -xzf picbed-switcher-frontend_${VERSION}.tar.gz -C frontend

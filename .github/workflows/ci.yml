@@ -125,11 +125,6 @@ jobs:
           cd dist && zip -r picbed-switcher_${VERSION}_windows_arm64.zip windows_arm64 && cd ..
           rm -rf dist/windows_arm64
 
-          echo "📝 生成校验和..."
-          cd dist
-          sha256sum *.tar.gz *.zip > picbed-switcher_${VERSION}_checksums.txt
-          cd ..
-
           echo "✅ 编译完成"
           echo "commit=${BUILD_COMMIT}" >> $GITHUB_OUTPUT
           echo "build_date=${BUILD_DATE}" >> $GITHUB_OUTPUT
@@ -149,12 +144,14 @@ jobs:
           echo "📦 打包 Frontend 静态资源..."
           tar -czf dist-release/picbed-switcher-frontend_${VERSION}.tar.gz -C dist .
 
-          echo "📝 生成 Frontend 校验和..."
-          cd dist-release
-          sha256sum *.tar.gz > picbed-switcher-frontend_${VERSION}_checksums.txt
-          cd ..
-
           echo "✅ Frontend 构建完成"
+
+      - name: 生成 SHA256SUMS
+        run: |
+          mkdir -p release-assets
+          sha256sum backend/dist/*.tar.gz backend/dist/*.zip frontend/dist-release/*.tar.gz \
+            | sed -E 's#(backend/dist|frontend/dist-release)/##' \
+            > release-assets/SHA256SUMS
 
       - name: 构建并推送 Docker 镜像
         uses: docker/build-push-action@v7
@@ -219,7 +216,7 @@ jobs:
           - Frontend 静态资源包: \`picbed-switcher-frontend_${VERSION}.tar.gz\`
 
           ### 🔐 校验和
-          请下载 \`picbed-switcher_${VERSION}_checksums.txt\` 和 \`picbed-switcher-frontend_${VERSION}_checksums.txt\` 验证文件完整性。
+          下载 \`SHA256SUMS\` 和对应产物后，执行 \`sha256sum -c SHA256SUMS\` 验证文件完整性。
           EOF
 
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
@@ -235,6 +232,5 @@ jobs:
           files: |
             backend/dist/*.tar.gz
             backend/dist/*.zip
-            backend/dist/*_checksums.txt
             frontend/dist-release/*.tar.gz
-            frontend/dist-release/*_checksums.txt
+            release-assets/SHA256SUMS
