@@ -259,6 +259,7 @@ CONVERT_WORKER_CONCURRENCY=1
   - `465` 端口通常使用 `ssl`
   - `587` 端口通常使用 `starttls`
   - 保留 `auto` 时，`465` 自动使用隐式 TLS，其他端口会在服务端支持时启用 `STARTTLS`
+  - `none` 表示明文连接并直接使用明文认证，账号密码不经加密传输，仅建议在可信内网使用
 
 - `REDIS_ENABLED=true` 时，转换任务会写入 Redis 队列并由后台 worker 消费
 - `REDIS_ENABLED=false` 时，会回退为本进程内存队列，适合不启 Redis 的本地开发
@@ -390,6 +391,7 @@ CONVERT_WORKER_CONCURRENCY=1
   - `465` 端口通常使用 `ssl`
   - `587` 端口通常使用 `starttls`
   - 保留 `auto` 时，`465` 自动使用隐式 TLS，其他端口会在服务端支持时启用 `STARTTLS`
+  - `none` 表示明文连接并直接使用明文认证，账号密码不经加密传输，仅建议在可信内网使用
 
 - `REDIS_ENABLED=true` 时，转换任务会写入 Redis 队列并由后台 worker 消费
 - `REDIS_ENABLED=false` 时，会回退为本进程内存队列，适合不启 Redis 的本地开发
@@ -649,6 +651,7 @@ CONVERT_WORKER_CONCURRENCY=1
   - `465` 端口通常使用 `ssl`
   - `587` 端口通常使用 `starttls`
   - 保留 `auto` 时，`465` 自动使用隐式 TLS，其他端口会在服务端支持时启用 `STARTTLS`
+  - `none` 表示明文连接并直接使用明文认证，账号密码不经加密传输，仅建议在可信内网使用
 
 - `REDIS_ENABLED=true` 时，转换任务会写入 Redis 队列并由后台 worker 消费
 - `REDIS_ENABLED=false` 时，会回退为本进程内存队列，适合不启 Redis 的本地开发

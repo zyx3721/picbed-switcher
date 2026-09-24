@@ -43,13 +43,17 @@ func sendMail(cfg MailConfig, to, subject string, builder func(string, string, s
 	addr := net.JoinHostPort(cfg.Host, port)
 	from := strings.TrimSpace(cfg.From)
 	message := builder(fromAddressHeader(from, cfg.FromName), to, subject, actionURL)
-	var auth smtp.Auth
-	if cfg.Username != "" || cfg.Password != "" {
-		auth = smtp.PlainAuth("", cfg.Username, cfg.Password, cfg.Host)
-	}
 	security, err := resolveSMTPSecurity(cfg.Security, port)
 	if err != nil {
 		return err
+	}
+	var auth smtp.Auth
+	if cfg.Username != "" || cfg.Password != "" {
+		if security == "none" {
+			auth = plainInsecureAuthPayload(cfg.Username, cfg.Password)
+		} else {
+			auth = smtp.PlainAuth("", cfg.Username, cfg.Password, cfg.Host)
+		}
 	}
 	if security == "ssl" {
 		conn, err := tls.Dial("tcp", addr, &tls.Config{ServerName: cfg.Host, MinVersion: tls.VersionTLS12})
@@ -269,4 +273,19 @@ func sendSMTP(client *smtp.Client, auth smtp.Auth, from, to string, message []by
 		return err
 	}
 	return writer.Close()
+}
+
+// plainInsecureAuth 在明文连接上直接发送 PLAIN 认证，绕过标准库 smtp.PlainAuth 对未加密连接的限制，仅用于 SMTP_SECURITY=none
+type plainInsecureAuth string
+
+func plainInsecureAuthPayload(username string, password string) smtp.Auth {
+	return plainInsecureAuth("\x00" + username + "\x00" + password)
+}
+
+func (a plainInsecureAuth) Start(*smtp.ServerInfo) (string, []byte, error) {
+	return "PLAIN", []byte(a), nil
+}
+
+func (a plainInsecureAuth) Next([]byte, bool) ([]byte, error) {
+	return nil, nil
 }

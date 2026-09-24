@@ -1,0 +1,117 @@
+# 环境变量
+.env
+.env.10*
+.env.local
+.env.*.local
+.env.development
+docker.env
+!.env.example
+
+# Node 依赖
+node_modules/
+frontend/node_modules/
+
+# 构建产物
+dist/
+dist-ssr/
+*.local
+dev-dist/
+bin/
+tmp/
+.output/
+.data/
+.nuxt/
+.nitro/
+.cache/
+
+# 日志
+logs/
+*.log
+
+# IDE / 编辑器
+.vscode/
+!.vscode/extensions.json
+.idea/
+.fleet/
+*.sw?
+
+# AI 编辑器配置
+.claude/
+.trae/
+.cursor/
+.copilot/
+.aider*
+.codeium/
+.tabnine/
+.codex/
+.supermaven/
+.windsurf/
+.zed/
+continue/
+.github/copilot/
+.codex-cache/
+AGENTS.md
+CLAUDE.md
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 测试覆盖率
+coverage/
+coverage.txt
+
+# TypeScript
+*.tsbuildinfo
+
+# Go 编译产物
+*.exe
+*.so
+*.dylib
+
+# Go 测试
+*.test
+*.out
+
+# 数据库文件
+*.db
+*.sqlite
+
+# 上传文件
+server/uploads/*
+!server/uploads/.gitkeep
+
+# 文档文件
+待开发功能.md
+开发需求.md
+优化.md
+
+# ===== ↑ 以上同步自 .gitignore（「从 .gitignore 同步」只重写以上部分）=====
+.git/
+.hg/
+.svn/
+bower_components/
+jspm_packages/
+__pycache__/
+site-packages/
+venv/
+htmlcov/
+lcov-report/
+cmakefiles/
+cmake-build-*/
+bazel-*/
+pods/
+deriveddata/
+storybook-static/
+playwright-report/
+test-results/
+allure-results/
+allure-report/
+cdk.out/
+*.egg-info/
+*.dist-info/
+eggs/
+pip-wheel-metadata/
+wheels/
+# ----- ↑ 以上为 ZCode 默认排除规则（自定义规则请写在本行下方，不会被同步/恢复改动）-----
+# 自定义规则写在下方（本行提示可删除）
